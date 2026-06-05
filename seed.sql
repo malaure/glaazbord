@@ -1,5 +1,5 @@
 -- Clients GLAAZ
-INSERT INTO clients (id, societe, interlocuteurs, delai_paiement_jours, notes, created_at) VALUES
+INSERT OR IGNORE INTO clients (id, societe, interlocuteurs, delai_paiement_jours, notes, created_at) VALUES
   ('c1', 'PPG France Manufacturing', '["Jeremy Tourolle","Stéphane François","Sabrina Vansuyt","Romain Gravelle","Mathieu Brisy","Valérie Coulier","Sandrine Druart"]', 45, NULL, datetime('now')),
   ('c2', 'GALEA Immobilier', '["Julien Brouillard"]', 0, 'À réception', datetime('now')),
   ('c3', 'Mairie de Marly', '["Lucie Jamain"]', 0, 'À réception', datetime('now')),
@@ -10,7 +10,7 @@ INSERT INTO clients (id, societe, interlocuteurs, delai_paiement_jours, notes, c
   ('c8', 'Grand Prix de Denain', '["Valérie Moreau"]', 0, 'À réception', datetime('now'));
 
 -- Fournisseurs GLAAZ
-INSERT INTO fournisseurs (id, nom, notes, created_at) VALUES
+INSERT OR IGNORE INTO fournisseurs (id, nom, notes, created_at) VALUES
   ('f1', 'print.com', 'Principal — Dibond, Forex, affiches, roll-up, autocollants, CDV…', datetime('now')),
   ('f2', '123 Panneaux', 'Panneaux immobiliers AkyLux, tableaux', datetime('now')),
   ('f3', 'Realisaprint', 'Trophées Plexiglas', datetime('now')),
