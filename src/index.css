@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    background-color: #ffffff;
+    color: #1A1A2E;
+  }
+}
+
+@layer utilities {
+  .text-2xs {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
+
+/* Styles d'impression pour export URSSAF */
+@media print {
+  body * { visibility: hidden; }
+  .print\:border-0 { border: 0; }
+  #resume-print, #resume-print * { visibility: visible; }
+  #resume-print { position: fixed; top: 0; left: 0; width: 100%; }
+}

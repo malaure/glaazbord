@@ -1,0 +1,8 @@
+name = "glaazboard"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "glaazboard-db"
+database_id = "b6168613-0aac-4459-80f6-04c9e586e0bc"
