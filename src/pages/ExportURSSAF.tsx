@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Printer } from 'lucide-react'
+import { Printer, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Affaire } from '@/types'
 import { calculerAffaire, formaterEuros } from '@/utils/calculs'
 
@@ -56,6 +56,12 @@ export function ExportURSSAF({ affaires }: Props) {
     }
   }, [affaires, mode, mois, trimestre, annee])
 
+  const naviguerMois = (delta: number) => {
+    const [y, m] = mois.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setMois(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
   const periodeLabel = mode === 'mois'
     ? new Date(mois + '-01').toLocaleString('fr-FR', { month: 'long', year: 'numeric' })
     : `T${trimestre} ${annee}`
@@ -89,8 +95,18 @@ export function ExportURSSAF({ affaires }: Props) {
           ))}
         </div>
         {mode === 'mois' ? (
-          <input type="month" value={mois} onChange={e => setMois(e.target.value)}
-            className="px-2.5 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-lavender-400" />
+          <div className="flex items-center gap-1">
+            <button onClick={() => naviguerMois(-1)}
+              className="p-1.5 rounded border border-border text-text-muted hover:bg-surface hover:text-text-main transition-colors">
+              <ChevronLeft size={14} />
+            </button>
+            <input type="month" value={mois} onChange={e => setMois(e.target.value)}
+              className="px-2.5 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-lavender-400" />
+            <button onClick={() => naviguerMois(1)}
+              className="p-1.5 rounded border border-border text-text-muted hover:bg-surface hover:text-text-main transition-colors">
+              <ChevronRight size={14} />
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <select value={trimestre} onChange={e => setTrimestre(Number(e.target.value))}

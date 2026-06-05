@@ -102,6 +102,19 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     return list
   }, [affaires, filtres, sortKey, sortDir])
 
+  const totauxFiltres = useMemo(() => {
+    if (!filtres.societe) return null
+    return affairesFiltrees.reduce((acc, a) => {
+      if (a.statut === 'ANNULE') return acc
+      const c = calculerAffaire(a)
+      return {
+        prixVente: acc.prixVente + c.prixVenteTotalHT,
+        marge: acc.marge + c.margeBrute,
+        net: acc.net + c.netEnPoche,
+      }
+    }, { prixVente: 0, marge: 0, net: 0 })
+  }, [affairesFiltrees, filtres.societe])
+
   const toggleStatut = (s: StatutAffaire) => setFiltres(f => ({
     ...f,
     statuts: f.statuts.includes(s) ? f.statuts.filter(x => x !== s) : [...f.statuts, s]
@@ -152,6 +165,17 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
           Afficher annulées
         </label>
       </div>
+
+      {/* Totaux client filtré */}
+      {totauxFiltres && (
+        <div className="flex items-center gap-5 px-4 py-2.5 rounded-lg bg-lavender-50 border border-lavender-100 text-sm">
+          <span className="font-medium text-lavender-700">{filtres.societe}</span>
+          <span className="text-text-muted text-xs">{affairesFiltrees.filter(a => a.statut !== 'ANNULE').length} affaire{affairesFiltrees.filter(a => a.statut !== 'ANNULE').length !== 1 ? 's' : ''}</span>
+          <span className="ml-auto text-xs text-text-muted">CA HT <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.prixVente)}</span></span>
+          <span className="text-xs text-text-muted">Marge <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.marge)}</span></span>
+          <span className="text-xs text-text-muted">Net en poche <span className="font-semibold text-mint-600">{formaterEuros(totauxFiltres.net)}</span></span>
+        </div>
+      )}
 
       {/* Tableau */}
       <div className="overflow-x-auto rounded-lg border border-border bg-white shadow-card">
