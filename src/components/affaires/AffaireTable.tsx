@@ -1,12 +1,18 @@
 import { useState, useMemo } from 'react'
-import { ChevronUp, ChevronDown, AlertCircle, Trash2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, AlertCircle, Trash2, Search, X } from 'lucide-react'
 import type { Affaire, StatutAffaire, TypeAffaire } from '@/types'
-import { calculerAffaire, formaterEuros, estEnRetard } from '@/utils/calculs'
+import { calculerAffaire, formaterEuros, estEnRetard, sansParents } from '@/utils/calculs'
 import { BadgeStatut, BadgeType } from '@/components/ui/Badge'
 import { Toggle } from '@/components/ui/Toggle'
 import clsx from 'clsx'
 
-type SortKey = 'dateDevis' | 'dateFacture' | 'societe' | 'designation' | 'prixVenteTotalHT' | 'netEnPoche' | 'statut'
+type SortKey =
+  | 'dateDevis' | 'dateFacture' | 'dateEcheance'
+  | 'societe' | 'designation' | 'interlocuteur' | 'fournisseur'
+  | 'refDevis' | 'refFacture'
+  | 'statut' | 'type'
+  | 'prixVenteTotalHT' | 'netEnPoche' | 'margeBrute' | 'chargesTotal' | 'coutAchatTTC'
+  | 'clientPaye' | 'fournisseurPaye'
 
 interface Filtres {
   statuts: StatutAffaire[]
@@ -14,6 +20,7 @@ interface Filtres {
   societe: string
   moisPaiement: string
   showAnnules: boolean
+  recherche: string
 }
 
 interface Props {
@@ -58,6 +65,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     societe: '',
     moisPaiement: '',
     showAnnules: false,
+    recherche: '',
   })
 
   const handleSort = (k: SortKey) => {
@@ -79,6 +87,19 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
       list = list.filter(a => a.datePaiementClient?.startsWith(filtres.moisPaiement))
     }
 
+    if (filtres.recherche) {
+      const q = filtres.recherche.toLowerCase()
+      list = list.filter(a => {
+        const haystack = [
+          a.societe, a.designation, a.refDevis, a.refFacture,
+          a.interlocuteur, a.fournisseur, a.notes,
+          a.prixVenteHT?.toString(), a.coutAchatTTC?.toString(),
+          a.montantBienHT?.toString(), a.montantServiceHT?.toString(),
+        ].join(' ').toLowerCase()
+        return haystack.includes(q)
+      })
+    }
+
     if (sortKey) {
       list = [...list].sort((a, b) => {
         let va: string | number = ''
@@ -89,9 +110,21 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         } else if (sortKey === 'netEnPoche') {
           va = calculerAffaire(a).netEnPoche
           vb = calculerAffaire(b).netEnPoche
+        } else if (sortKey === 'margeBrute') {
+          va = calculerAffaire(a).margeBrute
+          vb = calculerAffaire(b).margeBrute
+        } else if (sortKey === 'chargesTotal') {
+          va = calculerAffaire(a).chargesTotal
+          vb = calculerAffaire(b).chargesTotal
+        } else if (sortKey === 'clientPaye') {
+          va = a.clientPaye ? 1 : 0
+          vb = b.clientPaye ? 1 : 0
+        } else if (sortKey === 'fournisseurPaye') {
+          va = a.fournisseurPaye ? 1 : 0
+          vb = b.fournisseurPaye ? 1 : 0
         } else {
-          va = (a[sortKey] ?? '') as string
-          vb = (b[sortKey] ?? '') as string
+          va = (a[sortKey as keyof Affaire] ?? '') as string
+          vb = (b[sortKey as keyof Affaire] ?? '') as string
         }
         if (va < vb) return sortDir === 'asc' ? -1 : 1
         if (va > vb) return sortDir === 'asc' ? 1 : -1
@@ -100,11 +133,11 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     }
 
     return list
-  }, [affaires, filtres, sortKey, sortDir])
+  }, [affaires, filtres, sortKey, sortDir]) // filtres inclut recherche
 
   const totauxFiltres = useMemo(() => {
-    if (!filtres.societe) return null
-    return affairesFiltrees.reduce((acc, a) => {
+    if (!filtres.societe && !filtres.statuts.length) return null
+    return sansParents(affairesFiltrees).reduce((acc, a) => {
       if (a.statut === 'ANNULE') return acc
       const c = calculerAffaire(a)
       return {
@@ -113,7 +146,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         net: acc.net + c.netEnPoche,
       }
     }, { prixVente: 0, marge: 0, net: 0 })
-  }, [affairesFiltrees, filtres.societe])
+  }, [affairesFiltrees, filtres.societe, filtres.statuts])
 
   const toggleStatut = (s: StatutAffaire) => setFiltres(f => ({
     ...f,
@@ -124,6 +157,26 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     <div className="flex flex-col gap-3">
       {/* Barre de filtres */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Recherche globale */}
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Rechercher…"
+            value={filtres.recherche}
+            onChange={e => setFiltres(f => ({ ...f, recherche: e.target.value }))}
+            className="pl-7 pr-7 py-1 rounded border border-border text-xs text-text-main bg-white focus:outline-none focus:border-lavender-400 w-44"
+          />
+          {filtres.recherche && (
+            <button
+              onClick={() => setFiltres(f => ({ ...f, recherche: '' }))}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
         {(['DEVIS', 'FACTURE', 'PAYE'] as StatutAffaire[]).map(s => (
           <button
             key={s}
@@ -167,15 +220,23 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
       </div>
 
       {/* Totaux client filtré */}
-      {totauxFiltres && (
-        <div className="flex items-center gap-5 px-4 py-2.5 rounded-lg bg-lavender-50 border border-lavender-100 text-sm">
-          <span className="font-medium text-lavender-700">{filtres.societe}</span>
-          <span className="text-text-muted text-xs">{affairesFiltrees.filter(a => a.statut !== 'ANNULE').length} affaire{affairesFiltrees.filter(a => a.statut !== 'ANNULE').length !== 1 ? 's' : ''}</span>
-          <span className="ml-auto text-xs text-text-muted">CA HT <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.prixVente)}</span></span>
-          <span className="text-xs text-text-muted">Marge <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.marge)}</span></span>
-          <span className="text-xs text-text-muted">Net en poche <span className="font-semibold text-mint-600">{formaterEuros(totauxFiltres.net)}</span></span>
-        </div>
-      )}
+      {totauxFiltres && (() => {
+        const STATUT_LABELS: Record<StatutAffaire, string> = { DEVIS: 'Devis', FACTURE: 'Facturé', PAYE: 'Payé', ANNULE: 'Annulé' }
+        const parts = [
+          ...(filtres.statuts.length ? [filtres.statuts.map(s => STATUT_LABELS[s]).join(' + ')] : []),
+          ...(filtres.societe ? [filtres.societe] : []),
+        ]
+        const nbActives = sansParents(affairesFiltrees).filter(a => a.statut !== 'ANNULE').length
+        return (
+          <div className="flex items-center gap-5 px-4 py-2.5 rounded-lg bg-lavender-50 border border-lavender-100 text-sm">
+            <span className="font-medium text-lavender-700">{parts.join(' — ')}</span>
+            <span className="text-text-muted text-xs">{nbActives} affaire{nbActives !== 1 ? 's' : ''}</span>
+            <span className="ml-auto text-xs text-text-muted">CA HT <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.prixVente)}</span></span>
+            <span className="text-xs text-text-muted">Marge <span className="font-semibold text-text-main">{formaterEuros(totauxFiltres.marge)}</span></span>
+            <span className="text-xs text-text-muted">Net en poche <span className="font-semibold text-mint-600">{formaterEuros(totauxFiltres.net)}</span></span>
+          </div>
+        )
+      })()}
 
       {/* Tableau */}
       <div className="overflow-x-auto rounded-lg border border-border bg-white shadow-card">
@@ -183,23 +244,23 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
           <thead>
             <tr className="bg-surface border-b border-border">
               <Th label="Statut" sortKey="statut" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Réf devis" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Réf facture" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Réf devis" sortKey="refDevis" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Réf facture" sortKey="refFacture" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Date devis" sortKey="dateDevis" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Date facture" sortKey="dateFacture" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Société" sortKey="societe" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Interlocuteur" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Interlocuteur" sortKey="interlocuteur" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Désignation" sortKey="designation" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Type" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Coût achat TTC" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Coût achat TTC" sortKey="coutAchatTTC" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Prix vente HT" sortKey="prixVenteTotalHT" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Marge brute" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Charges" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Marge brute" sortKey="margeBrute" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Charges" sortKey="chargesTotal" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Net en poche" sortKey="netEnPoche" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Échéance" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Fournisseur" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Fourn. payé" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Client payé" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Échéance" sortKey="dateEcheance" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Fournisseur" sortKey="fournisseur" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Fourn. payé" sortKey="fournisseurPaye" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <Th label="Client payé" sortKey="clientPaye" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th label="Notes" current={sortKey} dir={sortDir} onSort={handleSort} />
               <th className="px-3 py-2.5 w-8" />
             </tr>

@@ -66,6 +66,15 @@ export function calculerDateEcheance(dateFacture: string, delaiJours: number): s
   return d.toISOString().split('T')[0]
 }
 
+// Exclut les affaires "conteneur" (qui ont des enfants) des calculs financiers
+// pour éviter le double comptage avec leurs acomptes/soldes
+export function sansParents(affaires: Affaire[]): Affaire[] {
+  const parentIds = new Set(
+    affaires.map(a => a.affaireParentId).filter((id): id is string => !!id)
+  )
+  return affaires.filter(a => !parentIds.has(a.id))
+}
+
 export function estEnRetard(affaire: Affaire): boolean {
   if (affaire.clientPaye || affaire.statut === 'ANNULE' || affaire.statut === 'DEVIS') return false
   if (!affaire.dateEcheance) return false

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Affaire } from '@/types'
-import { calculerAffaire, formaterEuros } from '@/utils/calculs'
+import { calculerAffaire, formaterEuros, sansParents } from '@/utils/calculs'
 
 interface Props {
   affaires: Affaire[]
@@ -34,6 +34,22 @@ function kpiMois(affaires: Affaire[], annee: number, mois: number) {
     acc.net += c.netEnPoche
     return acc
   }, { caHT: 0, bien: 0, service: 0, charges: 0, net: 0 })
+}
+
+function soldeCompte(affaires: Affaire[]) {
+  const encaissees = affaires.filter(a => a.statut !== 'ANNULE' && a.clientPaye)
+  const { encaisse, urssaf } = encaissees.reduce((acc, a) => {
+    const c = calculerAffaire(a)
+    acc.encaisse += c.prixVenteTotalHT
+    acc.urssaf += c.chargesTotal
+    return acc
+  }, { encaisse: 0, urssaf: 0 })
+
+  const fournisseursPayes = affaires
+    .filter(a => a.statut !== 'ANNULE' && a.fournisseurPaye)
+    .reduce((acc, a) => acc + (a.coutAchatTTC ?? 0), 0)
+
+  return { encaisse, urssaf, fournisseursPayes, solde: encaisse - urssaf - fournisseursPayes }
 }
 
 function tresorerie(affaires: Affaire[]) {
@@ -74,10 +90,12 @@ export function KPISidebar({ affaires }: Props) {
   const moisPrecedent = moisCourant === 1 ? 12 : moisCourant - 1
   const anneePrecedente = moisCourant === 1 ? annee - 1 : annee
 
-  const anneeData = useMemo(() => kpiAnnee(affaires), [affaires])
-  const moisData = useMemo(() => kpiMois(affaires, annee, moisCourant), [affaires, annee, moisCourant])
-  const moisPrecData = useMemo(() => kpiMois(affaires, anneePrecedente, moisPrecedent), [affaires, anneePrecedente, moisPrecedent])
-  const tresoData = useMemo(() => tresorerie(affaires), [affaires])
+  const af = useMemo(() => sansParents(affaires), [affaires])
+  const anneeData = useMemo(() => kpiAnnee(af), [af])
+  const moisData = useMemo(() => kpiMois(af, annee, moisCourant), [af, annee, moisCourant])
+  const moisPrecData = useMemo(() => kpiMois(af, anneePrecedente, moisPrecedent), [af, anneePrecedente, moisPrecedent])
+  const tresoData = useMemo(() => tresorerie(af), [af])
+  const soldeData = useMemo(() => soldeCompte(af), [af])
 
   const nomMois = (m: number) => new Date(2024, m - 1).toLocaleString('fr-FR', { month: 'long' })
 
@@ -108,6 +126,18 @@ export function KPISidebar({ affaires }: Props) {
         <KPIRow label="CA HT encaissé" value={formaterEuros(moisPrecData.caHT)} />
         <KPIRow label="Charges" value={formaterEuros(moisPrecData.charges)} />
         <KPIRow label="Net en poche" value={formaterEuros(moisPrecData.net)} highlight />
+      </Card>
+
+      <Card title="Sur mon compte">
+        <KPIRow label="Encaissé clients" value={formaterEuros(soldeData.encaisse)} />
+        <KPIRow label="− URSSAF réglée" value={formaterEuros(soldeData.urssaf)} />
+        <KPIRow label="− Fournisseurs réglés" value={formaterEuros(soldeData.fournisseursPayes)} />
+        <div className="mt-2 pt-2 border-t border-border">
+          <KPIRow label="Solde estimé" value={formaterEuros(soldeData.solde)} highlight />
+        </div>
+        <p className="text-2xs text-text-muted mt-2 leading-relaxed">
+          URSSAF calculée sur tous les encaissements — à ajuster si une déclaration est encore en attente.
+        </p>
       </Card>
 
       <Card title="Trésorerie & En-cours">
