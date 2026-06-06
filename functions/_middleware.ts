@@ -115,6 +115,18 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
 
   const url = new URL(request.url)
 
+  // Déconnexion — supprime le cookie et redirige vers login
+  if (url.pathname === '/__logout') {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: '/',
+        'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`,
+        'Cache-Control': 'no-store',
+      },
+    })
+  }
+
   // Formulaire de login (POST uniquement)
   if (url.pathname === '/__login') {
     if (request.method !== 'POST') return Response.redirect(new URL('/', url).href, 302)
