@@ -115,6 +115,13 @@ glaaz-gestion/
 - **Sur mon compte** : calcul temps réel du solde estimé = encaissé clients − URSSAF calculée sur ces encaissements − achats fournisseurs payés
 - **Trésorerie & En-cours** : encaissé / à encaisser (facturé) / en attente (devis) / fournisseurs
 
+### Authentification (`functions/_middleware.ts`)
+- Cookie `gb_auth` HMAC-SHA256 — 90 jours, HttpOnly, Secure, SameSite=Strict
+- Route `/__login` (POST) avec délai anti-brute-force 200ms
+- Route `/__logout` : supprime le cookie et redirige vers login
+- Bouton déconnexion (icône LogOut) dans la TopBar, à droite du bouton "Nouvelle affaire"
+- Dev local sans variable `AUTH_PASSWORD` = pas de protection (bypass automatique)
+
 ### Export URSSAF (`ExportURSSAF.tsx`)
 - Sélecteur mensuel ou trimestriel
 - Flèches ‹ › pour naviguer de mois en mois sans toucher l'input
