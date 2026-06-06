@@ -99,6 +99,33 @@ glaaz-gestion/
 
 ---
 
+## Fonctionnalités implémentées
+
+### Tableau des affaires (`AffaireTable.tsx`)
+- **Tri** : toutes les colonnes sont cliquables (clic = asc, reclic = desc) — y compris les colonnes calculées (marge, charges, net)
+- **Recherche globale** : input loupe en haut à gauche, filtre en temps réel dans toutes les colonnes (société, désignation, réfs, interlocuteur, fournisseur, montants, notes, EPO…)
+- **Filtres statut** : boutons DEVIS / FACTURÉ / PAYÉ — cumulables
+- **Filtre société** : select déroulant
+- **Filtre mois paiement** : input type=month
+- **Bande totaux** (lavande) : s'affiche dès qu'un filtre statut ou société est actif — affiche CA HT, Marge, Net en poche du sous-ensemble filtré (hors annulés, hors parents)
+
+### KPI Sidebar droite (`KPISidebar.tsx`)
+- **Année en cours** : CA HT, achats, marge, charges, net
+- **Mois courant et M-1** : CA biens/services, charges, net — basés sur `datePaiementClient`
+- **Sur mon compte** : calcul temps réel du solde estimé = encaissé clients − URSSAF calculée sur ces encaissements − achats fournisseurs payés
+- **Trésorerie & En-cours** : encaissé / à encaisser (facturé) / en attente (devis) / fournisseurs
+
+### Export URSSAF (`ExportURSSAF.tsx`)
+- Sélecteur mensuel ou trimestriel
+- Flèches ‹ › pour naviguer de mois en mois sans toucher l'input
+- Tableau des affaires encaissées sur la période + récapitulatif biens/services/charges/net
+
+### Anti double-comptage acomptes (`calculs.ts`)
+- `sansParents(affaires)` : exclut les affaires-conteneurs dont l'ID est référencé comme `affaireParentId` par un enfant — évite de compter 2× les affaires avec acomptes (ex : BUULD 900€ parent + 450€+450€ enfants)
+- Appliqué dans KPISidebar, AffaireTable (totaux filtrés) — pas nécessaire dans ExportURSSAF car les parents n'ont pas de `datePaiementClient`
+
+---
+
 ## Règles de calcul URSSAF (fichier `src/utils/calculs.ts`)
 
 | Type | Taux charges | Formule marge | Formule net |
@@ -177,6 +204,6 @@ Points importants :
 ## Fonctionnalités à venir / pistes
 
 - Page Statistiques (graphiques annuels, évolution CA, top clients) — squelette présent dans `App.tsx`
-- Import CSV des 60 affaires existantes pour remplir la base initiale
 - Raccourci clavier pour "Nouvelle affaire"
 - Export données brutes JSON/CSV pour sauvegarde manuelle
+- af39, af40, af41 (commandes PPG 04/06/2026) ont `ref_devis = 'À compléter'` — à mettre à jour avec les vrais numéros Indy
