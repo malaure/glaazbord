@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { ChevronUp, ChevronDown, AlertCircle, Trash2, Search, X } from 'lucide-react'
-import type { Affaire, StatutAffaire, TypeAffaire } from '@/types'
+import type { Affaire, StatutAffaire, StatutProd, TypeAffaire } from '@/types'
 import { calculerAffaire, formaterEuros, estEnRetard, sansParents } from '@/utils/calculs'
-import { BadgeStatut, BadgeType } from '@/components/ui/Badge'
+import { BadgeStatut, BadgeStatutProd, BadgeType } from '@/components/ui/Badge'
 import { Toggle } from '@/components/ui/Toggle'
 import clsx from 'clsx'
 
@@ -10,12 +10,25 @@ type SortKey =
   | 'dateDevis' | 'dateFacture' | 'dateEcheance'
   | 'societe' | 'designation' | 'interlocuteur' | 'fournisseur'
   | 'refDevis' | 'refFacture'
-  | 'statut' | 'type'
+  | 'statut' | 'statutProd' | 'type'
   | 'prixVenteTotalHT' | 'netEnPoche' | 'margeBrute' | 'chargesTotal' | 'coutAchatTTC'
   | 'clientPaye' | 'fournisseurPaye'
 
+const STATUT_PROD_ORDER: Record<StatutProd, number> = {
+  COMMANDE_RECUE: 1, CREATION_A_FAIRE: 2, ATTENTE_BAT: 3,
+  EN_IMPRESSION: 4, EN_LIVRAISON: 5, ATTENTE_FACTURATION: 6, PROD_FACTURE: 7,
+}
+
+const STATUT_PROD_LABELS: Record<StatutProd, string> = {
+  COMMANDE_RECUE: 'Commande reçue', CREATION_A_FAIRE: 'Création à faire',
+  ATTENTE_BAT: 'Attente BAT', EN_IMPRESSION: 'En impression',
+  EN_LIVRAISON: 'En livraison', ATTENTE_FACTURATION: 'Attente facturation',
+  PROD_FACTURE: 'Facturé',
+}
+
 interface Filtres {
   statuts: StatutAffaire[]
+  statutProd: StatutProd | ''
   types: TypeAffaire[]
   societe: string
   moisPaiement: string
@@ -31,27 +44,43 @@ interface Props {
   onTogglePaiementFournisseur: (id: string, paye: boolean) => void
 }
 
-function Th({ label, sortKey, current, dir, onSort }: {
+const DEFAULT_COL_WIDTHS: Record<string, number> = {
+  statut: 100, prod: 148, refDevis: 112, refFacture: 112,
+  dateDevis: 90, dateFacture: 90, societe: 150, interlocuteur: 116,
+  designation: 240, type: 72, coutAchat: 104, prixVente: 104,
+  marge: 92, charges: 84, net: 92, echeance: 90,
+  fournisseur: 112, fournPaye: 90, clientPaye: 82, notes: 160, actions: 40,
+}
+
+function Th({ label, sortKey, current, dir, onSort, colId, width, onResizeStart }: {
   label: string
   sortKey?: SortKey
   current: SortKey | null
   dir: 'asc' | 'desc'
   onSort: (k: SortKey) => void
+  colId?: string
+  width?: number
+  onResizeStart?: (colId: string, e: React.MouseEvent<HTMLDivElement>) => void
 }) {
   return (
     <th
-      className={clsx(
-        'px-3 py-2.5 text-left text-2xs font-medium text-text-muted uppercase tracking-wide whitespace-nowrap select-none',
-        sortKey && 'cursor-pointer hover:text-text-main'
-      )}
+      style={width !== undefined ? { width } : undefined}
+      className="relative px-3 py-2.5 text-left text-2xs font-medium text-text-muted uppercase tracking-wide whitespace-nowrap select-none"
       onClick={() => sortKey && onSort(sortKey)}
     >
-      <span className="flex items-center gap-1">
+      <span className={clsx('flex items-center gap-1', sortKey && 'cursor-pointer hover:text-text-main')}>
         {label}
         {sortKey && current === sortKey && (
           dir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />
         )}
       </span>
+      {colId && onResizeStart && (
+        <div
+          className="absolute right-0 top-1 bottom-1 w-1.5 cursor-col-resize rounded opacity-0 hover:opacity-100 hover:bg-lavender-300 transition-opacity"
+          onMouseDown={e => onResizeStart(colId, e)}
+          onClick={e => e.stopPropagation()}
+        />
+      )}
     </th>
   )
 }
@@ -59,8 +88,49 @@ function Th({ label, sortKey, current, dir, onSort }: {
 export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementClient, onTogglePaiementFournisseur }: Props) {
   const [sortKey, setSortKey] = useState<SortKey | null>('dateDevis')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('glaazboard-col-widths')
+      return saved ? { ...DEFAULT_COL_WIDTHS, ...JSON.parse(saved) } : DEFAULT_COL_WIDTHS
+    } catch { return DEFAULT_COL_WIDTHS }
+  })
+
+  const resizingRef = useRef(false)
+
+  const startResize = useCallback((colId: string, e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const th = e.currentTarget.parentElement as HTMLTableCellElement
+    const startX = e.clientX
+    const startW = th.getBoundingClientRect().width
+    resizingRef.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.max(48, startW + ev.clientX - startX)
+      th.style.width = newW + 'px'
+    }
+    const onUp = (ev: MouseEvent) => {
+      const newW = Math.max(48, startW + ev.clientX - startX)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      resizingRef.current = false
+      setColWidths(prev => {
+        const updated = { ...prev, [colId]: newW }
+        localStorage.setItem('glaazboard-col-widths', JSON.stringify(updated))
+        return updated
+      })
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
   const [filtres, setFiltres] = useState<Filtres>({
     statuts: [],
+    statutProd: '',
     types: [],
     societe: '',
     moisPaiement: '',
@@ -85,6 +155,9 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     if (filtres.societe) list = list.filter(a => a.societe === filtres.societe)
     if (filtres.moisPaiement) {
       list = list.filter(a => a.datePaiementClient?.startsWith(filtres.moisPaiement))
+    }
+    if (filtres.statutProd) {
+      list = list.filter(a => a.statutProd === filtres.statutProd)
     }
 
     if (filtres.recherche) {
@@ -122,6 +195,9 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         } else if (sortKey === 'fournisseurPaye') {
           va = a.fournisseurPaye ? 1 : 0
           vb = b.fournisseurPaye ? 1 : 0
+        } else if (sortKey === 'statutProd') {
+          va = a.statutProd ? STATUT_PROD_ORDER[a.statutProd] : 0
+          vb = b.statutProd ? STATUT_PROD_ORDER[b.statutProd] : 0
         } else {
           va = (a[sortKey as keyof Affaire] ?? '') as string
           vb = (b[sortKey as keyof Affaire] ?? '') as string
@@ -136,7 +212,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
   }, [affaires, filtres, sortKey, sortDir]) // filtres inclut recherche
 
   const totauxFiltres = useMemo(() => {
-    if (!filtres.societe && !filtres.statuts.length) return null
+    if (!filtres.societe && !filtres.statuts.length && !filtres.statutProd) return null
     return sansParents(affairesFiltrees).reduce((acc, a) => {
       if (a.statut === 'ANNULE') return acc
       const c = calculerAffaire(a)
@@ -201,6 +277,17 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
           {societes.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
+        <select
+          value={filtres.statutProd}
+          onChange={e => setFiltres(f => ({ ...f, statutProd: e.target.value as StatutProd | '' }))}
+          className="px-2.5 py-1 rounded border border-border text-xs text-text-muted bg-white focus:outline-none focus:border-lavender-400"
+        >
+          <option value="">Tous statuts prod.</option>
+          {(Object.keys(STATUT_PROD_LABELS) as StatutProd[]).map(s => (
+            <option key={s} value={s}>{STATUT_PROD_LABELS[s]}</option>
+          ))}
+        </select>
+
         <input
           type="month"
           value={filtres.moisPaiement}
@@ -224,6 +311,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         const STATUT_LABELS: Record<StatutAffaire, string> = { DEVIS: 'Devis', FACTURE: 'Facturé', PAYE: 'Payé', ANNULE: 'Annulé' }
         const parts = [
           ...(filtres.statuts.length ? [filtres.statuts.map(s => STATUT_LABELS[s]).join(' + ')] : []),
+          ...(filtres.statutProd ? [STATUT_PROD_LABELS[filtres.statutProd]] : []),
           ...(filtres.societe ? [filtres.societe] : []),
         ]
         const nbActives = sansParents(affairesFiltrees).filter(a => a.statut !== 'ANNULE').length
@@ -240,35 +328,36 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
 
       {/* Tableau */}
       <div className="overflow-x-auto rounded-lg border border-border bg-white shadow-card">
-        <table className="w-full border-collapse text-sm">
+        <table className="border-collapse text-sm" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr className="bg-surface border-b border-border">
-              <Th label="Statut" sortKey="statut" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Réf devis" sortKey="refDevis" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Réf facture" sortKey="refFacture" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Date devis" sortKey="dateDevis" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Date facture" sortKey="dateFacture" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Société" sortKey="societe" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Interlocuteur" sortKey="interlocuteur" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Désignation" sortKey="designation" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Coût achat TTC" sortKey="coutAchatTTC" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Prix vente HT" sortKey="prixVenteTotalHT" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Marge brute" sortKey="margeBrute" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Charges" sortKey="chargesTotal" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Net en poche" sortKey="netEnPoche" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Échéance" sortKey="dateEcheance" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Fournisseur" sortKey="fournisseur" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Fourn. payé" sortKey="fournisseurPaye" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Client payé" sortKey="clientPaye" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <Th label="Notes" current={sortKey} dir={sortDir} onSort={handleSort} />
-              <th className="px-3 py-2.5 w-8" />
+              <Th label="Statut"         sortKey="statut"          current={sortKey} dir={sortDir} onSort={handleSort} colId="statut"        width={colWidths.statut}        onResizeStart={startResize} />
+              <Th label="Prod."          sortKey="statutProd"       current={sortKey} dir={sortDir} onSort={handleSort} colId="prod"          width={colWidths.prod}          onResizeStart={startResize} />
+              <Th label="Réf devis"      sortKey="refDevis"        current={sortKey} dir={sortDir} onSort={handleSort} colId="refDevis"      width={colWidths.refDevis}      onResizeStart={startResize} />
+              <Th label="Réf facture"    sortKey="refFacture"      current={sortKey} dir={sortDir} onSort={handleSort} colId="refFacture"    width={colWidths.refFacture}    onResizeStart={startResize} />
+              <Th label="Date devis"     sortKey="dateDevis"       current={sortKey} dir={sortDir} onSort={handleSort} colId="dateDevis"     width={colWidths.dateDevis}     onResizeStart={startResize} />
+              <Th label="Date facture"   sortKey="dateFacture"     current={sortKey} dir={sortDir} onSort={handleSort} colId="dateFacture"   width={colWidths.dateFacture}   onResizeStart={startResize} />
+              <Th label="Société"        sortKey="societe"         current={sortKey} dir={sortDir} onSort={handleSort} colId="societe"       width={colWidths.societe}       onResizeStart={startResize} />
+              <Th label="Interlocuteur"  sortKey="interlocuteur"   current={sortKey} dir={sortDir} onSort={handleSort} colId="interlocuteur" width={colWidths.interlocuteur} onResizeStart={startResize} />
+              <Th label="Désignation"    sortKey="designation"     current={sortKey} dir={sortDir} onSort={handleSort} colId="designation"   width={colWidths.designation}   onResizeStart={startResize} />
+              <Th label="Type"           sortKey="type"            current={sortKey} dir={sortDir} onSort={handleSort} colId="type"          width={colWidths.type}          onResizeStart={startResize} />
+              <Th label="Coût achat TTC" sortKey="coutAchatTTC"    current={sortKey} dir={sortDir} onSort={handleSort} colId="coutAchat"     width={colWidths.coutAchat}     onResizeStart={startResize} />
+              <Th label="Prix vente HT"  sortKey="prixVenteTotalHT" current={sortKey} dir={sortDir} onSort={handleSort} colId="prixVente"    width={colWidths.prixVente}     onResizeStart={startResize} />
+              <Th label="Marge brute"    sortKey="margeBrute"      current={sortKey} dir={sortDir} onSort={handleSort} colId="marge"         width={colWidths.marge}         onResizeStart={startResize} />
+              <Th label="Charges"        sortKey="chargesTotal"    current={sortKey} dir={sortDir} onSort={handleSort} colId="charges"       width={colWidths.charges}       onResizeStart={startResize} />
+              <Th label="Net en poche"   sortKey="netEnPoche"      current={sortKey} dir={sortDir} onSort={handleSort} colId="net"           width={colWidths.net}           onResizeStart={startResize} />
+              <Th label="Échéance"       sortKey="dateEcheance"    current={sortKey} dir={sortDir} onSort={handleSort} colId="echeance"      width={colWidths.echeance}      onResizeStart={startResize} />
+              <Th label="Fournisseur"    sortKey="fournisseur"     current={sortKey} dir={sortDir} onSort={handleSort} colId="fournisseur"   width={colWidths.fournisseur}   onResizeStart={startResize} />
+              <Th label="Fourn. payé"    sortKey="fournisseurPaye" current={sortKey} dir={sortDir} onSort={handleSort} colId="fournPaye"     width={colWidths.fournPaye}     onResizeStart={startResize} />
+              <Th label="Client payé"    sortKey="clientPaye"      current={sortKey} dir={sortDir} onSort={handleSort} colId="clientPaye"    width={colWidths.clientPaye}    onResizeStart={startResize} />
+              <Th label="Notes"                                     current={sortKey} dir={sortDir} onSort={handleSort} colId="notes"         width={colWidths.notes}         onResizeStart={startResize} />
+              <th style={{ width: colWidths.actions }} className="px-3 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {affairesFiltrees.length === 0 && (
               <tr>
-                <td colSpan={19} className="px-4 py-10 text-center text-sm text-text-muted">
+                <td colSpan={20} className="px-4 py-10 text-center text-sm text-text-muted">
                   Aucune affaire
                 </td>
               </tr>
@@ -297,6 +386,9 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                       {retard && <AlertCircle size={12} className="text-peach-500" />}
                     </div>
                   </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {a.statutProd && <BadgeStatutProd statut={a.statutProd} />}
+                  </td>
                   <td className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap">
                     {isChild && <span className="mr-1 text-lavender-400">↳</span>}
                     {a.refDevis}
@@ -310,13 +402,13 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                   <td className="px-3 py-2 text-xs text-text-muted whitespace-nowrap">
                     {a.dateFacture ? new Date(a.dateFacture).toLocaleDateString('fr-FR') : '—'}
                   </td>
-                  <td className="px-3 py-2 text-sm font-medium text-text-main whitespace-nowrap">
-                    {a.societe}
+                  <td className="px-3 py-2 text-sm font-medium text-text-main max-w-0">
+                    <span className="block truncate" title={a.societe}>{a.societe}</span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted whitespace-nowrap">
-                    {a.interlocuteur ?? '—'}
+                  <td className="px-3 py-2 text-xs text-text-muted max-w-0">
+                    <span className="block truncate">{a.interlocuteur ?? '—'}</span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-main max-w-[180px]">
+                  <td className="px-3 py-2 text-xs text-text-main max-w-0">
                     <span title={a.designation} className="block truncate">{a.designation}</span>
                     {isParent && (
                       <span className="text-2xs text-lavender-400">acomptes liés</span>
@@ -369,7 +461,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                       onChange={v => onTogglePaiementClient(a.id, v)}
                     />
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted max-w-[120px]">
+                  <td className="px-3 py-2 text-xs text-text-muted max-w-0">
                     <span title={a.notes ?? ''} className="block truncate">{a.notes ?? '—'}</span>
                   </td>
                   <td className="px-2 py-2" onClick={e => e.stopPropagation()}>

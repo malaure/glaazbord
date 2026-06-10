@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS affaires (
   client_paye INTEGER NOT NULL DEFAULT 0,
   date_paiement_client TEXT,
   affaire_parent_id TEXT,
+  statut_prod TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (affaire_parent_id) REFERENCES affaires(id)

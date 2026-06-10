@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { StatutAffaire, TypeAffaire } from '@/types'
+import type { StatutAffaire, StatutProd, TypeAffaire } from '@/types'
 
 const statutStyles: Record<StatutAffaire, string> = {
   DEVIS: 'bg-powder-50 text-powder-600 border-powder-100',
@@ -31,6 +31,39 @@ export function BadgeStatut({ statut }: { statut: StatutAffaire }) {
     </span>
   )
 }
+
+const statutProdStyles: Record<StatutProd, string> = {
+  COMMANDE_RECUE:       'bg-sky-100 text-sky-700 border-sky-200',
+  CREATION_A_FAIRE:     'bg-indigo-100 text-indigo-700 border-indigo-200',
+  ATTENTE_BAT:          'bg-orange-100 text-orange-700 border-orange-200',
+  EN_IMPRESSION:        'bg-purple-100 text-purple-700 border-purple-200',
+  EN_LIVRAISON:         'bg-teal-100 text-teal-700 border-teal-200',
+  ATTENTE_FACTURATION:  'bg-amber-100 text-amber-700 border-amber-200',
+  PROD_FACTURE:         'bg-green-100 text-green-700 border-green-200',
+}
+
+const statutProdLabels: Record<StatutProd, string> = {
+  COMMANDE_RECUE:       'Commande reçue',
+  CREATION_A_FAIRE:     'Création à faire',
+  ATTENTE_BAT:          'Attente BAT',
+  EN_IMPRESSION:        'En impression',
+  EN_LIVRAISON:         'En livraison',
+  ATTENTE_FACTURATION:  'Attente facturation',
+  PROD_FACTURE:         'Facturé',
+}
+
+export function BadgeStatutProd({ statut }: { statut: StatutProd }) {
+  return (
+    <span className={clsx(
+      'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap',
+      statutProdStyles[statut]
+    )}>
+      {statutProdLabels[statut]}
+    </span>
+  )
+}
+
+export { statutProdLabels }
 
 export function BadgeType({ type }: { type: TypeAffaire }) {
   return (

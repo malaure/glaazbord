@@ -4,6 +4,7 @@ import { Affaires } from '@/pages/Affaires'
 import { Clients } from '@/pages/Clients'
 import { Fournisseurs } from '@/pages/Fournisseurs'
 import { ExportURSSAF } from '@/pages/ExportURSSAF'
+import { CalculateurLaser } from '@/pages/CalculateurLaser'
 import { useAffaires } from '@/store/useStore'
 
 function StatistiquesPage() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/fournisseurs" element={<Fournisseurs />} />
             <Route path="/statistiques" element={<StatistiquesPage />} />
             <Route path="/export" element={<ExportPage />} />
+            <Route path="/laser" element={<CalculateurLaser />} />
           </Routes>
         </main>
       </div>

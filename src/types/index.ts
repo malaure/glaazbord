@@ -1,5 +1,13 @@
 export type StatutAffaire = 'DEVIS' | 'FACTURE' | 'PAYE' | 'ANNULE'
 export type TypeAffaire = 'BIEN' | 'SERVICE' | 'MIXTE'
+export type StatutProd =
+  | 'COMMANDE_RECUE'
+  | 'CREATION_A_FAIRE'
+  | 'ATTENTE_BAT'
+  | 'EN_IMPRESSION'
+  | 'EN_LIVRAISON'
+  | 'ATTENTE_FACTURATION'
+  | 'PROD_FACTURE'
 
 export interface Client {
   id: string
@@ -47,6 +55,8 @@ export interface Affaire {
   datePaiementFournisseur?: string
   clientPaye: boolean
   datePaiementClient?: string
+  // Production
+  statutProd?: StatutProd
   // Acomptes
   affaireParentId?: string    // si c'est un acompte lié à une affaire
   // Méta

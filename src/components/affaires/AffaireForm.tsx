@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { X, Upload, Loader2 } from 'lucide-react'
-import type { Affaire, StatutAffaire, TypeAffaire } from '@/types'
+import type { Affaire, StatutAffaire, StatutProd, TypeAffaire } from '@/types'
 import { calculerAffaire, formaterEuros, calculerDateEcheance } from '@/utils/calculs'
 import { Autocomplete } from '@/components/ui/Autocomplete'
 import clsx from 'clsx'
@@ -38,6 +38,7 @@ type FormData = {
   clientPaye: boolean
   datePaiementClient: string
   affaireParentId: string
+  statutProd: StatutProd | ''
 }
 
 function toFormData(a?: Affaire): FormData {
@@ -65,6 +66,7 @@ function toFormData(a?: Affaire): FormData {
     clientPaye: a?.clientPaye ?? false,
     datePaiementClient: a?.datePaiementClient ?? '',
     affaireParentId: a?.affaireParentId ?? '',
+    statutProd: a?.statutProd ?? '',
   }
 }
 
@@ -93,6 +95,7 @@ function fromFormData(f: FormData): Partial<Affaire> {
     clientPaye: f.clientPaye,
     datePaiementClient: f.datePaiementClient || undefined,
     affaireParentId: f.affaireParentId || undefined,
+    statutProd: f.statutProd || undefined,
   }
 }
 
@@ -258,7 +261,14 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <form onSubmit={handleSubmit}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+              e.preventDefault()
+              handleSubmit(e as unknown as React.FormEvent)
+            }
+          }}
+          className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
           {/* Zone PDF */}
           {!affaire && (
@@ -313,6 +323,19 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
                 <option value="FACTURE">Facturé</option>
                 <option value="PAYE">Payé</option>
                 <option value="ANNULE">Annulé</option>
+              </select>
+            </Field>
+            <Field label="Statut production">
+              <select className={inputCls} value={form.statutProd}
+                onChange={e => set('statutProd', e.target.value as StatutProd | '')}>
+                <option value="">— non défini —</option>
+                <option value="COMMANDE_RECUE">Commande reçue</option>
+                <option value="CREATION_A_FAIRE">Création à faire</option>
+                <option value="ATTENTE_BAT">En attente retour BAT</option>
+                <option value="EN_IMPRESSION">En impression</option>
+                <option value="EN_LIVRAISON">En livraison</option>
+                <option value="ATTENTE_FACTURATION">En attente de facturation</option>
+                <option value="PROD_FACTURE">Facturé</option>
               </select>
             </Field>
           </Section>

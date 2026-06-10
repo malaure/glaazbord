@@ -28,6 +28,7 @@ function rowToAffaire(row: Record<string, unknown>): Affaire {
     clientPaye: Boolean(row.client_paye),
     datePaiementClient: row.date_paiement_client as string | undefined,
     affaireParentId: row.affaire_parent_id as string | undefined,
+    statutProd: row.statut_prod as Affaire['statutProd'] | undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -53,8 +54,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
       fournisseur, notes_fournisseur, delai_paiement_jours, date_echeance,
       fournisseur_paye, date_paiement_fournisseur,
       client_paye, date_paiement_client, affaire_parent_id,
-      created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      statut_prod, created_at, updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, body.refDevis, body.refFacture ?? null, body.dateDevis ?? null, body.dateFacture ?? null,
     body.statut ?? 'DEVIS', body.societe, body.interlocuteur ?? null,
@@ -64,7 +65,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
     body.delaiPaiementJours ?? null, body.dateEcheance ?? null,
     body.fournisseurPaye ? 1 : 0, body.datePaiementFournisseur ?? null,
     body.clientPaye ? 1 : 0, body.datePaiementClient ?? null,
-    body.affaireParentId ?? null, now, now
+    body.affaireParentId ?? null, body.statutProd ?? null, now, now
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM affaires WHERE id = ?').bind(id).first()

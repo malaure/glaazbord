@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutList, Users, Truck, BarChart3, FileText } from 'lucide-react'
+import { LayoutList, Users, Truck, BarChart3, FileText, Zap } from 'lucide-react'
 import clsx from 'clsx'
 
 const nav = [
@@ -8,6 +8,7 @@ const nav = [
   { to: '/fournisseurs', icon: Truck, label: 'Fournisseurs' },
   { to: '/statistiques', icon: BarChart3, label: 'Statistiques' },
   { to: '/export', icon: FileText, label: 'Export URSSAF' },
+  { to: '/laser', icon: Zap, label: 'Devis Laser' },
 ]
 
 export function Sidebar() {

@@ -28,6 +28,7 @@ function rowToAffaire(row: Record<string, unknown>): Affaire {
     clientPaye: Boolean(row.client_paye),
     datePaiementClient: row.date_paiement_client as string | undefined,
     affaireParentId: row.affaire_parent_id as string | undefined,
+    statutProd: row.statut_prod as Affaire['statutProd'] | undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -45,7 +46,8 @@ export const onRequestPut: PagesFunction<Env> = async ({ env, request, params })
       prix_vente_ht=?, montant_bien_ht=?, montant_service_ht=?, cout_achat_ttc=?,
       fournisseur=?, notes_fournisseur=?, delai_paiement_jours=?, date_echeance=?,
       fournisseur_paye=?, date_paiement_fournisseur=?,
-      client_paye=?, date_paiement_client=?, affaire_parent_id=?, updated_at=?
+      client_paye=?, date_paiement_client=?, affaire_parent_id=?,
+      statut_prod=?, updated_at=?
     WHERE id=?
   `).bind(
     body.refDevis, body.refFacture ?? null, body.dateDevis ?? null, body.dateFacture ?? null,
@@ -56,7 +58,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ env, request, params })
     body.delaiPaiementJours ?? null, body.dateEcheance ?? null,
     body.fournisseurPaye ? 1 : 0, body.datePaiementFournisseur ?? null,
     body.clientPaye ? 1 : 0, body.datePaiementClient ?? null,
-    body.affaireParentId ?? null, now, id
+    body.affaireParentId ?? null, body.statutProd ?? null, now, id
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM affaires WHERE id = ?').bind(id).first()
