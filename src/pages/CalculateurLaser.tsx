@@ -131,10 +131,10 @@ export function CalculateurLaser() {
   const hasCrea        = heures > 0
 
   return (
-    <div className="flex flex-col gap-5 px-6 py-5 max-w-3xl">
+    <div className="flex-1 overflow-y-auto flex flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 max-w-3xl">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center">
             {tab === 'laser'
@@ -213,7 +213,7 @@ export function CalculateurLaser() {
           </button>
 
           {showParams && (
-            <div className="bg-surface rounded-lg border border-border px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1 text-xs -mt-3">
+            <div className="bg-surface rounded-lg border border-border px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs -mt-3">
               <ResultRow label="Amortissement machine" value={`${AMORTISSEMENT.toFixed(4)} €/h`} muted />
               <ResultRow label="Électricité (920W × 65%)" value={`${ELECTRICITE.toFixed(4)} €/h`} muted />
               <ResultRow label="Filtres AP2 (5 filtres)" value={`${FILTRES_AP2.toFixed(4)} €/h`} muted />
@@ -225,7 +225,7 @@ export function CalculateurLaser() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Matière */}
             <div className="bg-white rounded-lg border border-border p-4 flex flex-col gap-3">
               <div className="flex items-center gap-2 mb-1">
@@ -235,7 +235,7 @@ export function CalculateurLaser() {
               <InputField label="Achat matière TTC" value={achatTTC} onChange={setAchatTTC} />
               {hasMatiere ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
-                  <ResultRow label={`Prix vente HT (× ${COEFF_MATIERE})`} value={fmt(pvHT)} />
+                  <ResultRow label={prive ? 'Prix vente HT' : `Prix vente HT (× ${COEFF_MATIERE})`} value={fmt(pvHT)} />
                   <ResultRow label="Charges URSSAF (13,3%)" value={`− ${fmt(chargesMat)}`} muted hide={prive} />
                   <ResultRow label="Net matière" value={fmt(netMat)} accent hide={prive} />
                 </div>
@@ -267,7 +267,7 @@ export function CalculateurLaser() {
 
           {(hasMatiere || hasService) && (
             <div className="bg-white rounded-lg border border-lavender-200 px-5 py-4">
-              <div className={clsx('grid gap-4', prive ? 'grid-cols-1' : 'grid-cols-3')}>
+              <div className={clsx('grid gap-4', prive ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-3')}>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs text-text-muted uppercase tracking-wide">Total devis HT</span>
                   <span className="text-xl font-semibold text-text-main tabular-nums">{fmt(totalDevis)}</span>
@@ -330,7 +330,7 @@ export function CalculateurLaser() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Matière / fourniture */}
             <div className="bg-white rounded-lg border border-border p-4 flex flex-col gap-3">
               <div className="flex items-center gap-2 mb-1">
@@ -342,7 +342,7 @@ export function CalculateurLaser() {
               {hasMatierePao ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
                   {qte > 1 && <ResultRow label="Coût total TTC" value={fmt(coutMatTTC)} muted />}
-                  <ResultRow label={`Prix vente HT (× ${coeffMat.toFixed(3)})`} value={fmt(pvMatPao)} />
+                  <ResultRow label={prive ? 'Prix vente HT' : `Prix vente HT (× ${coeffMat.toFixed(3)})`} value={fmt(pvMatPao)} />
                   <ResultRow label="Charges URSSAF (13,3%)" value={`− ${fmt(chargesMatPao)}`} muted hide={prive} />
                   <ResultRow label="Net matière" value={fmt(netMatPao)} accent hide={prive} />
                 </div>
@@ -373,7 +373,7 @@ export function CalculateurLaser() {
 
           {(hasMatierePao || hasCrea) && (
             <div className="bg-white rounded-lg border border-lavender-200 px-5 py-4">
-              <div className={clsx('grid gap-4', prive ? 'grid-cols-1' : 'grid-cols-3')}>
+              <div className={clsx('grid gap-4', prive ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-3')}>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs text-text-muted uppercase tracking-wide">Total devis HT</span>
                   <span className="text-xl font-semibold text-text-main tabular-nums">{fmt(totalPao)}</span>
