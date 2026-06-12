@@ -110,6 +110,13 @@ glaaz-gestion/
 - **Filtre mois paiement** : input type=month
 - **Bande totaux** (lavande) : s'affiche dès qu'un filtre statut ou société est actif — affiche CA HT, Marge, Net en poche du sous-ensemble filtré (hors annulés, hors parents)
 - **Colonnes redimensionnables** : poignée de resize sur chaque en-tête, largeurs persistées en localStorage
+- **Édition inline** : clic direct sur une cellule pour modifier sans ouvrir le formulaire
+  - Selects : Statut (DEVIS/FACTURÉ/PAYÉ/ANNULÉ), Statut prod — sauvegarde immédiate au changement
+  - Inputs texte : Réf devis, Réf facture, Désignation, Fournisseur, Notes — `Enter` ou perte de focus pour valider, `Escape` pour annuler
+  - Inputs date : Date devis, Date facture, Échéance — sauvegarde au choix de la date
+  - Passage à PAYÉ via le select statut → coche automatiquement `clientPaye` avec la date du jour
+  - Cellules éditables signalées par `hover:bg-lavender-50` ; cellules non-éditables (société, interlocuteur, montants, type) → clic sur la ligne ouvre le formulaire complet
+  - Handler `onPatchAffaire(id, patch)` dans `Affaires.tsx` → appelle `modifier(id, patch)`
 
 ### KPI Sidebar droite (`KPISidebar.tsx`)
 - **Année en cours** : CA HT, achats, marge, charges, net
