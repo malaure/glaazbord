@@ -26,6 +26,9 @@ const STATUT_PROD_LABELS: Record<StatutProd, string> = {
   PROD_FACTURE: 'Facturé',
 }
 
+const INPUT_CLS = 'text-xs border border-lavender-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-lavender-500 w-full'
+const SELECT_CLS = 'text-xs border border-lavender-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-lavender-500'
+
 interface Filtres {
   statuts: StatutAffaire[]
   statutProd: StatutProd | ''
@@ -42,6 +45,7 @@ interface Props {
   onSupprimer: (id: string) => void
   onTogglePaiementClient: (id: string, paye: boolean) => void
   onTogglePaiementFournisseur: (id: string, paye: boolean) => void
+  onPatchAffaire: (id: string, patch: Partial<Affaire>) => void
 }
 
 const DEFAULT_COL_WIDTHS: Record<string, number> = {
@@ -85,9 +89,10 @@ function Th({ label, sortKey, current, dir, onSort, colId, width, onResizeStart 
   )
 }
 
-export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementClient, onTogglePaiementFournisseur }: Props) {
+export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementClient, onTogglePaiementFournisseur, onPatchAffaire }: Props) {
   const [sortKey, setSortKey] = useState<SortKey | null>('dateDevis')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [editingCell, setEditingCell] = useState<{ id: string; col: string } | null>(null)
 
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
@@ -128,6 +133,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   }, [])
+
   const [filtres, setFiltres] = useState<Filtres>({
     statuts: [],
     statutProd: '',
@@ -137,6 +143,18 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     showAnnules: false,
     recherche: '',
   })
+
+  const isEditing = (id: string, col: string) => editingCell?.id === id && editingCell?.col === col
+
+  const startEdit = useCallback((id: string, col: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingCell({ id, col })
+  }, [])
+
+  const commitText = useCallback((id: string, field: keyof Affaire, value: string) => {
+    onPatchAffaire(id, { [field]: value || undefined } as Partial<Affaire>)
+    setEditingCell(null)
+  }, [onPatchAffaire])
 
   const handleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -209,7 +227,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     }
 
     return list
-  }, [affaires, filtres, sortKey, sortDir]) // filtres inclut recherche
+  }, [affaires, filtres, sortKey, sortDir])
 
   const totauxFiltres = useMemo(() => {
     if (!filtres.societe && !filtres.statuts.length && !filtres.statutProd) return null
@@ -371,53 +389,220 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
               return (
                 <tr
                   key={a.id}
-                  onClick={() => onEdit(a)}
+                  onClick={() => !editingCell && onEdit(a)}
                   className={clsx(
-                    'border-b border-border cursor-pointer transition-colors',
+                    'border-b border-border transition-colors',
                     'group',
-                  retard ? 'bg-peach-50 hover:bg-peach-100' : 'hover:bg-surface',
+                    !editingCell && 'cursor-pointer',
+                    retard ? 'bg-peach-50 hover:bg-peach-100' : 'hover:bg-surface',
                     isChild && 'border-l-2 border-l-lavender-200',
                     a.statut === 'ANNULE' && 'opacity-50'
                   )}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="flex items-center gap-1">
-                      <BadgeStatut statut={a.statut} />
-                      {retard && <AlertCircle size={12} className="text-peach-500" />}
-                    </div>
+                  {/* Statut */}
+                  <td
+                    className="px-3 py-2 whitespace-nowrap cursor-pointer hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'statut', e)}
+                  >
+                    {isEditing(a.id, 'statut') ? (
+                      <select
+                        autoFocus
+                        defaultValue={a.statut}
+                        className={SELECT_CLS}
+                        onChange={e => {
+                          const newStatut = e.target.value as StatutAffaire
+                          const patch: Partial<Affaire> = { statut: newStatut }
+                          if (newStatut === 'PAYE') {
+                            patch.clientPaye = true
+                            patch.datePaiementClient = a.datePaiementClient ?? new Date().toISOString().split('T')[0]
+                          } else if (newStatut === 'DEVIS' || newStatut === 'FACTURE') {
+                            patch.clientPaye = false
+                            patch.datePaiementClient = undefined
+                          }
+                          onPatchAffaire(a.id, patch)
+                          setEditingCell(null)
+                        }}
+                        onBlur={() => setEditingCell(null)}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <option value="DEVIS">Devis</option>
+                        <option value="FACTURE">Facturé</option>
+                        <option value="PAYE">Payé</option>
+                        <option value="ANNULE">Annulé</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <BadgeStatut statut={a.statut} />
+                        {retard && <AlertCircle size={12} className="text-peach-500" />}
+                      </div>
+                    )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {a.statutProd && <BadgeStatutProd statut={a.statutProd} />}
+
+                  {/* Statut prod */}
+                  <td
+                    className="px-3 py-2 whitespace-nowrap cursor-pointer hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'statutProd', e)}
+                  >
+                    {isEditing(a.id, 'statutProd') ? (
+                      <select
+                        autoFocus
+                        defaultValue={a.statutProd ?? ''}
+                        className={SELECT_CLS}
+                        onChange={e => {
+                          onPatchAffaire(a.id, { statutProd: (e.target.value as StatutProd) || undefined })
+                          setEditingCell(null)
+                        }}
+                        onBlur={() => setEditingCell(null)}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <option value="">— aucun —</option>
+                        {(Object.keys(STATUT_PROD_LABELS) as StatutProd[]).map(s => (
+                          <option key={s} value={s}>{STATUT_PROD_LABELS[s]}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      a.statutProd
+                        ? <BadgeStatutProd statut={a.statutProd} />
+                        : <span className="text-xs text-text-muted opacity-0 group-hover:opacity-60 transition-opacity">+</span>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap">
-                    {isChild && <span className="mr-1 text-lavender-400">↳</span>}
-                    {a.refDevis}
+
+                  {/* Réf devis */}
+                  <td
+                    className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'refDevis', e)}
+                  >
+                    {isEditing(a.id, 'refDevis') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.refDevis}
+                        className={INPUT_CLS + ' font-mono'}
+                        onBlur={e => { onPatchAffaire(a.id, { refDevis: e.target.value }); setEditingCell(null) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { onPatchAffaire(a.id, { refDevis: e.currentTarget.value }); setEditingCell(null) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        {isChild && <span className="mr-1 text-lavender-400">↳</span>}
+                        {a.refDevis}
+                      </>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap">
-                    {a.refFacture ?? '—'}
+
+                  {/* Réf facture */}
+                  <td
+                    className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'refFacture', e)}
+                  >
+                    {isEditing(a.id, 'refFacture') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.refFacture ?? ''}
+                        className={INPUT_CLS + ' font-mono'}
+                        onBlur={e => { commitText(a.id, 'refFacture', e.target.value) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { commitText(a.id, 'refFacture', e.currentTarget.value) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{a.refFacture ?? '—'}</span>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted whitespace-nowrap">
-                    {a.dateDevis ? new Date(a.dateDevis).toLocaleDateString('fr-FR') : '—'}
+
+                  {/* Date devis */}
+                  <td
+                    className="px-3 py-2 text-xs text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'dateDevis', e)}
+                  >
+                    {isEditing(a.id, 'dateDevis') ? (
+                      <input
+                        autoFocus
+                        type="date"
+                        defaultValue={a.dateDevis ?? ''}
+                        className={SELECT_CLS}
+                        onBlur={e => { commitText(a.id, 'dateDevis', e.target.value) }}
+                        onKeyDown={e => { if (e.key === 'Escape') setEditingCell(null) }}
+                        onChange={e => { if (e.target.value) { commitText(a.id, 'dateDevis', e.target.value) } }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{a.dateDevis ? new Date(a.dateDevis).toLocaleDateString('fr-FR') : '—'}</span>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted whitespace-nowrap">
-                    {a.dateFacture ? new Date(a.dateFacture).toLocaleDateString('fr-FR') : '—'}
+
+                  {/* Date facture */}
+                  <td
+                    className="px-3 py-2 text-xs text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'dateFacture', e)}
+                  >
+                    {isEditing(a.id, 'dateFacture') ? (
+                      <input
+                        autoFocus
+                        type="date"
+                        defaultValue={a.dateFacture ?? ''}
+                        className={SELECT_CLS}
+                        onBlur={e => { commitText(a.id, 'dateFacture', e.target.value) }}
+                        onKeyDown={e => { if (e.key === 'Escape') setEditingCell(null) }}
+                        onChange={e => { if (e.target.value) { commitText(a.id, 'dateFacture', e.target.value) } }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{a.dateFacture ? new Date(a.dateFacture).toLocaleDateString('fr-FR') : '—'}</span>
+                    )}
                   </td>
+
+                  {/* Société — non éditable inline (gestion client liée) */}
                   <td className="px-3 py-2 text-sm font-medium text-text-main max-w-0">
                     <span className="block truncate" title={a.societe}>{a.societe}</span>
                   </td>
+
+                  {/* Interlocuteur — non éditable inline (liste liée au client) */}
                   <td className="px-3 py-2 text-xs text-text-muted max-w-0">
                     <span className="block truncate">{a.interlocuteur ?? '—'}</span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-main max-w-0">
-                    <span title={a.designation} className="block truncate">{a.designation}</span>
-                    {isParent && (
-                      <span className="text-2xs text-lavender-400">acomptes liés</span>
+
+                  {/* Désignation */}
+                  <td
+                    className="px-3 py-2 text-xs text-text-main max-w-0 cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'designation', e)}
+                  >
+                    {isEditing(a.id, 'designation') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.designation}
+                        className={INPUT_CLS}
+                        onBlur={e => { onPatchAffaire(a.id, { designation: e.target.value }); setEditingCell(null) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { onPatchAffaire(a.id, { designation: e.currentTarget.value }); setEditingCell(null) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <span title={a.designation} className="block truncate">{a.designation}</span>
+                        {isParent && <span className="text-2xs text-lavender-400">acomptes liés</span>}
+                      </>
                     )}
                   </td>
+
+                  {/* Type — non éditable inline (change la structure des montants) */}
                   <td className="px-3 py-2"><BadgeType type={a.type} /></td>
+
+                  {/* Coût achat — non éditable inline (logique métier complexe) */}
                   <td className="px-3 py-2 text-xs text-text-muted text-right whitespace-nowrap">
                     {formaterEuros(a.coutAchatTTC)}
                   </td>
+
+                  {/* Prix vente — calculé, non éditable inline */}
                   <td className="px-3 py-2 text-xs font-medium text-text-main text-right whitespace-nowrap">
                     {a.type === 'MIXTE' ? (
                       <div className="text-right">
@@ -427,6 +612,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                       </div>
                     ) : formaterEuros(calc.prixVenteTotalHT)}
                   </td>
+
                   <td className="px-3 py-2 text-xs text-text-main text-right whitespace-nowrap">
                     {formaterEuros(calc.margeBrute)}
                   </td>
@@ -436,17 +622,56 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                   <td className="px-3 py-2 text-xs font-semibold text-mint-600 text-right whitespace-nowrap">
                     {formaterEuros(calc.netEnPoche)}
                   </td>
-                  <td className={clsx(
-                    'px-3 py-2 text-xs whitespace-nowrap',
-                    retard ? 'text-peach-600 font-medium' : 'text-text-muted'
-                  )}>
-                    {a.dateEcheance
-                      ? new Date(a.dateEcheance).toLocaleDateString('fr-FR')
-                      : '—'}
+
+                  {/* Échéance */}
+                  <td
+                    className={clsx(
+                      'px-3 py-2 text-xs whitespace-nowrap cursor-text hover:bg-lavender-50',
+                      retard ? 'text-peach-600 font-medium' : 'text-text-muted'
+                    )}
+                    onClick={e => startEdit(a.id, 'dateEcheance', e)}
+                  >
+                    {isEditing(a.id, 'dateEcheance') ? (
+                      <input
+                        autoFocus
+                        type="date"
+                        defaultValue={a.dateEcheance ?? ''}
+                        className={SELECT_CLS}
+                        onBlur={e => { commitText(a.id, 'dateEcheance', e.target.value) }}
+                        onKeyDown={e => { if (e.key === 'Escape') setEditingCell(null) }}
+                        onChange={e => { if (e.target.value) { commitText(a.id, 'dateEcheance', e.target.value) } }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>
+                        {a.dateEcheance ? new Date(a.dateEcheance).toLocaleDateString('fr-FR') : '—'}
+                      </span>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted whitespace-nowrap">
-                    {a.fournisseur ?? '—'}
+
+                  {/* Fournisseur */}
+                  <td
+                    className="px-3 py-2 text-xs text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'fournisseur', e)}
+                  >
+                    {isEditing(a.id, 'fournisseur') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.fournisseur ?? ''}
+                        className={INPUT_CLS}
+                        onBlur={e => { commitText(a.id, 'fournisseur', e.target.value) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { commitText(a.id, 'fournisseur', e.currentTarget.value) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{a.fournisseur ?? '—'}</span>
+                    )}
                   </td>
+
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <Toggle
                       checked={a.fournisseurPaye}
@@ -461,9 +686,30 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                       onChange={v => onTogglePaiementClient(a.id, v)}
                     />
                   </td>
-                  <td className="px-3 py-2 text-xs text-text-muted max-w-0">
-                    <span title={a.notes ?? ''} className="block truncate">{a.notes ?? '—'}</span>
+
+                  {/* Notes */}
+                  <td
+                    className="px-3 py-2 text-xs text-text-muted max-w-0 cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'notes', e)}
+                  >
+                    {isEditing(a.id, 'notes') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.notes ?? ''}
+                        className={INPUT_CLS}
+                        onBlur={e => { commitText(a.id, 'notes', e.target.value) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { commitText(a.id, 'notes', e.currentTarget.value) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span title={a.notes ?? ''} className="block truncate">{a.notes ?? '—'}</span>
+                    )}
                   </td>
+
                   <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => {

@@ -15,6 +15,10 @@ export function Affaires() {
   const [formModal, setFormModal] = useState<{ open: boolean; affaire?: Affaire }>({ open: false })
   const [resumeOpen, setResumeOpen] = useState(false)
 
+  const handlePatchAffaire = async (id: string, patch: Partial<Affaire>) => {
+    await modifier(id, patch)
+  }
+
   const handleTogglePaiementClient = async (id: string, paye: boolean) => {
     await modifier(id, {
       clientPaye: paye,
@@ -91,6 +95,7 @@ export function Affaires() {
                 onSupprimer={supprimer}
                 onTogglePaiementClient={handleTogglePaiementClient}
                 onTogglePaiementFournisseur={handleTogglePaiementFournisseur}
+                onPatchAffaire={handlePatchAffaire}
               />
             )}
           </div>
