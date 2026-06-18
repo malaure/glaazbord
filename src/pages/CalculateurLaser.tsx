@@ -66,6 +66,18 @@ export function CalculateurLaser() {
   const [minutesPrepa, setMinutesPrepa]       = useState('')
   const [showParams, setShowParams]           = useState(false)
 
+  // Mode « depuis une plaque » : coût matière au prorata de la surface utilisée
+  const [plaqueMode, setPlaqueMode] = useState(() => localStorage.getItem('laser-plaque-mode') === '1')
+  const [prixPlaque, setPrixPlaque] = useState(() => localStorage.getItem('laser-plaque-prix') ?? '')
+  const [plaqueL, setPlaqueL]       = useState(() => localStorage.getItem('laser-plaque-L') ?? '')
+  const [plaquel, setPlaquel]       = useState(() => localStorage.getItem('laser-plaque-l') ?? '')
+  const [pieceL, setPieceL]         = useState('')
+  const [piecel, setPiecel]         = useState('')
+  const [nbPieces, setNbPieces]     = useState('1')
+  const [margeCoupe, setMargeCoupe] = useState(() => localStorage.getItem('laser-plaque-marge') ?? '5')
+  const togglePlaque = () => setPlaqueMode(v => { const n = !v; localStorage.setItem('laser-plaque-mode', n ? '1' : '0'); return n })
+  const persist = (key: string, set: (v: string) => void) => (v: string) => { set(v); localStorage.setItem(key, v) }
+
   // ── PAO ───────────────────────────────────────────────────────────────────
   const [coeffMat, setCoeffMat]     = useState(() => parseFloat(localStorage.getItem('pao-coeff') ?? '2.13'))
   const [coeffInput, setCoeffInput] = useState(() => localStorage.getItem('pao-coeff') ?? '2.13')
@@ -92,10 +104,20 @@ export function CalculateurLaser() {
   }
 
   // ── Calculs laser ─────────────────────────────────────────────────────────
-  const achat      = parseFloat(achatTTC) || 0
+  // Coût matière au prorata si mode plaque : prix plaque × (surface pièces / surface plaque)
+  // Marge de coupe : +marge mm sur chaque bord → +2×marge sur chaque dimension
+  const marge      = parseFloat(margeCoupe) || 0
+  const pL         = parseFloat(pieceL) || 0
+  const pl         = parseFloat(piecel) || 0
+  const surfPlaque = (parseFloat(plaqueL) || 0) * (parseFloat(plaquel) || 0)
+  const surfPiece  = (pL > 0 && pl > 0) ? (pL + 2 * marge) * (pl + 2 * marge) : 0
+  const nbP        = parseFloat(nbPieces) || 0
+  const partPlaque = surfPlaque > 0 ? (surfPiece * nbP) / surfPlaque : 0
+  const coutPlaque = (parseFloat(prixPlaque) || 0) * partPlaque
+  const achat      = plaqueMode ? coutPlaque : (parseFloat(achatTTC) || 0)
   const pvHT       = achat * COEFF_MATIERE
   const chargesMat = pvHT * TAUX_BIEN
-  const netMat     = pvHT * (1 - TAUX_BIEN)
+  const netMat     = pvHT - achat - chargesMat   // net = marge (PV − achat) − charges
 
   const minGrav    = parseFloat(minutesGravure) || 0
   const minPrep    = parseFloat(minutesPrepa)   || 0
@@ -115,7 +137,7 @@ export function CalculateurLaser() {
   const coutMatTTC  = (parseFloat(achatPao) || 0) * qte
   const pvMatPao    = coutMatTTC * coeffMat
   const chargesMatPao = pvMatPao * TAUX_BIEN
-  const netMatPao   = pvMatPao * (1 - TAUX_BIEN)
+  const netMatPao   = pvMatPao - coutMatTTC - chargesMatPao   // net = marge (PV − achat) − charges
 
   const tauxNet     = parseFloat(tauxNetPao) || 0
   const tauxFacture = tauxNet > 0 ? tauxNet / (1 - TAUX_SERVICE) : 0
@@ -228,14 +250,49 @@ export function CalculateurLaser() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Matière */}
             <div className="bg-white rounded-lg border border-border p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                <span className="text-sm font-medium text-text-main">Ligne matière</span>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-400" />
+                  <span className="text-sm font-medium text-text-main">Ligne matière</span>
+                </div>
+                <div className="flex items-center rounded-md border border-border overflow-hidden text-2xs">
+                  <button
+                    onClick={() => plaqueMode && togglePlaque()}
+                    className={clsx('px-2 py-1 transition-colors', !plaqueMode ? 'bg-lavender-100 text-lavender-700 font-medium' : 'text-text-muted hover:text-text-main')}
+                  >Achat direct</button>
+                  <button
+                    onClick={() => !plaqueMode && togglePlaque()}
+                    className={clsx('px-2 py-1 transition-colors', plaqueMode ? 'bg-lavender-100 text-lavender-700 font-medium' : 'text-text-muted hover:text-text-main')}
+                  >Depuis une plaque</button>
+                </div>
               </div>
-              <InputField label="Achat matière TTC" value={achatTTC} onChange={setAchatTTC} />
+
+              {plaqueMode ? (
+                <>
+                  <InputField label="Prix de la plaque TTC" value={prixPlaque} onChange={persist('laser-plaque-prix', setPrixPlaque)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Plaque — longueur" value={plaqueL} onChange={persist('laser-plaque-L', setPlaqueL)} unit="mm" />
+                    <InputField label="Plaque — largeur" value={plaquel} onChange={persist('laser-plaque-l', setPlaquel)} unit="mm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Pièce — longueur" value={pieceL} onChange={setPieceL} unit="mm" />
+                    <InputField label="Pièce — largeur" value={piecel} onChange={setPiecel} unit="mm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Nombre de pièces" value={nbPieces} onChange={setNbPieces} unit="pcs" />
+                    <InputField label="Marge de coupe (par bord)" value={margeCoupe} onChange={persist('laser-plaque-marge', setMargeCoupe)} unit="mm" />
+                  </div>
+                </>
+              ) : (
+                <InputField label="Achat matière TTC" value={achatTTC} onChange={setAchatTTC} />
+              )}
               {hasMatiere ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
+                  {plaqueMode && (
+                    <ResultRow label={`Surface utilisée (${(partPlaque * 100).toFixed(1)} % de la plaque${marge > 0 ? `, +${marge} mm/bord` : ''})`} value={`${(surfPiece * nbP).toFixed(0)} / ${surfPlaque.toFixed(0)} mm²`} muted hide={prive} />
+                  )}
                   <ResultRow label={prive ? 'Prix vente HT' : `Prix vente HT (× ${COEFF_MATIERE})`} value={fmt(pvHT)} />
+                  <ResultRow label="Coût matière TTC" value={`− ${fmt(achat)}`} muted hide={prive} />
                   <ResultRow label="Charges URSSAF (13,3%)" value={`− ${fmt(chargesMat)}`} muted hide={prive} />
                   <ResultRow label="Net matière" value={fmt(netMat)} accent hide={prive} />
                 </div>
@@ -341,8 +398,8 @@ export function CalculateurLaser() {
               <InputField label="Quantité" value={qtePao} onChange={setQtePao} unit="×" placeholder="1" />
               {hasMatierePao ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
-                  {qte > 1 && <ResultRow label="Coût total TTC" value={fmt(coutMatTTC)} muted />}
                   <ResultRow label={prive ? 'Prix vente HT' : `Prix vente HT (× ${coeffMat.toFixed(3)})`} value={fmt(pvMatPao)} />
+                  <ResultRow label={qte > 1 ? `Coût matière TTC (× ${qte})` : 'Coût matière TTC'} value={`− ${fmt(coutMatTTC)}`} muted hide={prive} />
                   <ResultRow label="Charges URSSAF (13,3%)" value={`− ${fmt(chargesMatPao)}`} muted hide={prive} />
                   <ResultRow label="Net matière" value={fmt(netMatPao)} accent hide={prive} />
                 </div>
