@@ -140,14 +140,17 @@ glaaz-gestion/
 
 Deux onglets, paramètres persistés en `localStorage` :
 
+> **Net matière** = (PV HT − coût d'achat TTC) − charges, comme dans `calculs.ts` (BIEN). Le coût d'achat est bien déduit, pas seulement les charges — affiché en ligne `Coût matière TTC − X €` dans le détail.
+
 **Onglet Laser (xTool P2S 55W)**
-- Ligne matière : achat TTC × coefficient fixe 2.306 → PV HT, charges 13,3%, net
+- Ligne matière : achat TTC × coefficient fixe 2.306 → PV HT, charges 13,3%, net (achat déduit)
+  - Deux modes (sélecteur dans la carte) : **Achat direct** (saisie du coût TTC) ou **Depuis une plaque** : prix plaque TTC + dimensions plaque et pièce (en **mm**) + nb pièces + marge de coupe → coût matière au prorata `prix × (surface pièces / surface plaque)`. Marge de coupe (défaut 5 mm/bord, modifiable) ajoutée tout autour de chaque pièce. Prix + dimensions plaque + marge persistés en localStorage.
 - Ligne service : durée gravure + prépa (minutes) × (coût machine + taux horaire) → PV HT, charges 27,8%, net
 - Coût machine ~2.648 €/h = amortissement (4570 € / 4 ans / 600 h/an) + électricité (920W × 65% × 0.2516 €/kWh) + filtres AP2 + optiques P2S
 - Source des constantes : `GLAAZ_Calculateur_Gravure_Laser.xlsx`
 
 **Onglet PAO / Print**
-- Ligne matière : achat TTC × quantité × coefficient variable (défaut 2.13, modifiable), charges 13,3%
+- Ligne matière : achat TTC × quantité × coefficient variable (défaut 2.13, modifiable), charges 13,3%, net (achat déduit)
 - Ligne création graphique BNC : taux net souhaité (€/h) → taux facturé = net / (1 − 27,8%), × heures
 - Source du modèle : `grille_tarifs_glaaz.xlsx`
 
