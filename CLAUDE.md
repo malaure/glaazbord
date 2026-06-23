@@ -107,7 +107,7 @@ glaaz-gestion/
 - **Recherche globale** : input loupe en haut à gauche, filtre en temps réel dans toutes les colonnes (société, désignation, réfs, interlocuteur, fournisseur, montants, notes, EPO…)
 - **Filtres statut** : boutons DEVIS / FACTURÉ / PAYÉ — cumulables
 - **Filtre société** : select déroulant
-- **Filtre mois paiement** : input type=month
+- **Filtre mois** : input type=month — filtre sur dateDevis OU dateFacture OU datePaiementClient (montre toutes les affaires du mois quel que soit le statut)
 - **Bande totaux** (lavande) : s'affiche dès qu'un filtre statut ou société est actif — affiche CA HT, Marge, Net en poche du sous-ensemble filtré (hors annulés, hors parents)
 - **Colonnes redimensionnables** : poignée de resize sur chaque en-tête, largeurs persistées en localStorage
 - **Édition inline** : clic direct sur une cellule pour modifier sans ouvrir le formulaire
@@ -130,6 +130,13 @@ glaaz-gestion/
 - Route `/__logout` : supprime le cookie et redirige vers login
 - Bouton déconnexion (icône LogOut) dans la TopBar, à droite du bouton "Nouvelle affaire"
 - Dev local sans variable `AUTH_PASSWORD` = pas de protection (bypass automatique)
+
+### Résumé du mois (`ResumeMois.tsx`)
+- Popup accessible via le bouton en haut du tableau
+- Affiche **3 sections** : Encaissé (PAYÉ, base URSSAF) + Facturé (FACTURÉ, dateFacture dans le mois) + Devis (DEVIS, dateDevis dans le mois)
+- Vue d'ensemble en 3 tuiles avec CA et nb d'affaires par statut
+- Section charges/net en poche uniquement sur la partie encaissée (déclaration URSSAF)
+- Liste détaillée des affaires pour chaque section
 
 ### Export URSSAF (`ExportURSSAF.tsx`)
 - Sélecteur mensuel ou trimestriel

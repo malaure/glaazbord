@@ -172,7 +172,11 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
     if (filtres.types.length) list = list.filter(a => filtres.types.includes(a.type))
     if (filtres.societe) list = list.filter(a => a.societe === filtres.societe)
     if (filtres.moisPaiement) {
-      list = list.filter(a => a.datePaiementClient?.startsWith(filtres.moisPaiement))
+      list = list.filter(a =>
+        a.datePaiementClient?.startsWith(filtres.moisPaiement) ||
+        a.dateFacture?.startsWith(filtres.moisPaiement) ||
+        a.dateDevis?.startsWith(filtres.moisPaiement)
+      )
     }
     if (filtres.statutProd) {
       list = list.filter(a => a.statutProd === filtres.statutProd)
@@ -308,6 +312,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
 
         <input
           type="month"
+          title="Filtre par mois (devis, facture ou paiement)"
           value={filtres.moisPaiement}
           onChange={e => setFiltres(f => ({ ...f, moisPaiement: e.target.value }))}
           className="px-2.5 py-1 rounded border border-border text-xs text-text-muted bg-white focus:outline-none focus:border-lavender-400"
