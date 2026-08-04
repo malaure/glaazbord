@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { X, Upload, Loader2 } from 'lucide-react'
-import type { Affaire, StatutAffaire, StatutProd, TypeAffaire } from '@/types'
+import type { Affaire, StatutProd, TypeAffaire } from '@/types'
 import { calculerAffaire, formaterEuros, calculerDateEcheance } from '@/utils/calculs'
 import { Autocomplete } from '@/components/ui/Autocomplete'
 import clsx from 'clsx'
@@ -19,7 +19,6 @@ type FormData = {
   refFacture: string
   dateDevis: string
   dateFacture: string
-  statut: StatutAffaire
   societe: string
   interlocuteur: string
   designation: string
@@ -38,7 +37,7 @@ type FormData = {
   clientPaye: boolean
   datePaiementClient: string
   affaireParentId: string
-  statutProd: StatutProd | ''
+  statutProd: StatutProd
 }
 
 function toFormData(a?: Affaire): FormData {
@@ -47,7 +46,6 @@ function toFormData(a?: Affaire): FormData {
     refFacture: a?.refFacture ?? '',
     dateDevis: a?.dateDevis ?? new Date().toISOString().split('T')[0],
     dateFacture: a?.dateFacture ?? '',
-    statut: a?.statut ?? 'DEVIS',
     societe: a?.societe ?? '',
     interlocuteur: a?.interlocuteur ?? '',
     designation: a?.designation ?? '',
@@ -66,7 +64,7 @@ function toFormData(a?: Affaire): FormData {
     clientPaye: a?.clientPaye ?? false,
     datePaiementClient: a?.datePaiementClient ?? '',
     affaireParentId: a?.affaireParentId ?? '',
-    statutProd: a?.statutProd ?? '',
+    statutProd: a?.statutProd ?? 'COMMANDE_RECUE',
   }
 }
 
@@ -76,7 +74,6 @@ function fromFormData(f: FormData): Partial<Affaire> {
     refFacture: f.refFacture || undefined,
     dateDevis: f.dateDevis || undefined,
     dateFacture: f.dateFacture || undefined,
-    statut: f.statut,
     societe: f.societe,
     interlocuteur: f.interlocuteur || undefined,
     designation: f.designation,
@@ -95,7 +92,7 @@ function fromFormData(f: FormData): Partial<Affaire> {
     clientPaye: f.clientPaye,
     datePaiementClient: f.datePaiementClient || undefined,
     affaireParentId: f.affaireParentId || undefined,
-    statutProd: f.statutProd || undefined,
+    statutProd: f.statutProd,
   }
 }
 
@@ -200,10 +197,7 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
       }
       if (key === 'clientPaye' && value === true && !next.datePaiementClient) {
         next.datePaiementClient = new Date().toISOString().split('T')[0]
-        next.statut = 'PAYE'
-      }
-      if (key === 'refFacture' && value && next.statut === 'DEVIS') {
-        next.statut = 'FACTURE'
+        next.statutProd = 'PAYE'
       }
       return next
     })
@@ -317,18 +311,8 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
               </Field>
             </div>
             <Field label="Statut">
-              <select className={inputCls} value={form.statut}
-                onChange={e => set('statut', e.target.value as StatutAffaire)}>
-                <option value="DEVIS">Devis</option>
-                <option value="FACTURE">Facturé</option>
-                <option value="PAYE">Payé</option>
-                <option value="ANNULE">Annulé</option>
-              </select>
-            </Field>
-            <Field label="Statut production">
               <select className={inputCls} value={form.statutProd}
-                onChange={e => set('statutProd', e.target.value as StatutProd | '')}>
-                <option value="">— non défini —</option>
+                onChange={e => set('statutProd', e.target.value as StatutProd)}>
                 <option value="COMMANDE_RECUE">Commande reçue</option>
                 <option value="CREATION_A_FAIRE">Création à faire</option>
                 <option value="ATTENTE_BAT">En attente retour BAT</option>
@@ -336,6 +320,8 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
                 <option value="EN_LIVRAISON">En livraison</option>
                 <option value="ATTENTE_FACTURATION">En attente de facturation</option>
                 <option value="PROD_FACTURE">Facturé</option>
+                <option value="PAYE">Payé</option>
+                <option value="ANNULE">Annulé</option>
               </select>
             </Field>
           </Section>
@@ -497,7 +483,9 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
                       if (e.target.checked) {
                         if (!form.datePaiementClient)
                           set('datePaiementClient', new Date().toISOString().split('T')[0])
-                        set('statut', 'PAYE')
+                        set('statutProd', 'PAYE')
+                      } else {
+                        set('statutProd', form.refFacture ? 'PROD_FACTURE' : 'COMMANDE_RECUE')
                       }
                     }} />
                   Client payé

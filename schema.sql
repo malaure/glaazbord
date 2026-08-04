@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS affaires (
   ref_facture TEXT,
   date_devis TEXT,
   date_facture TEXT,
-  statut TEXT NOT NULL DEFAULT 'DEVIS', -- DEVIS | FACTURE | PAYE | ANNULE
+  statut TEXT NOT NULL DEFAULT 'DEVIS', -- déprécié, plus utilisé par l'app (voir statut_prod) — conservé pour rollback
   societe TEXT NOT NULL,
   interlocuteur TEXT,
   designation TEXT NOT NULL,
@@ -41,12 +41,12 @@ CREATE TABLE IF NOT EXISTS affaires (
   client_paye INTEGER NOT NULL DEFAULT 0,
   date_paiement_client TEXT,
   affaire_parent_id TEXT,
-  statut_prod TEXT,
+  statut_prod TEXT, -- COMMANDE_RECUE | CREATION_A_FAIRE | ATTENTE_BAT | EN_IMPRESSION | EN_LIVRAISON | ATTENTE_FACTURATION | PROD_FACTURE | PAYE | ANNULE (statut unique de l'affaire)
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (affaire_parent_id) REFERENCES affaires(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_affaires_statut ON affaires(statut);
+CREATE INDEX IF NOT EXISTS idx_affaires_statut_prod ON affaires(statut_prod);
 CREATE INDEX IF NOT EXISTS idx_affaires_societe ON affaires(societe);
 CREATE INDEX IF NOT EXISTS idx_affaires_date_paiement ON affaires(date_paiement_client);

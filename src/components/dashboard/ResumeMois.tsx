@@ -22,16 +22,16 @@ export function ResumeMois({ affaires, onClose }: Props) {
 
   const data = useMemo(() => {
     const [annee, m] = mois.split('-').map(Number)
-    const base = sansParents(affaires).filter(a => a.statut !== 'ANNULE')
+    const base = sansParents(affaires).filter(a => a.statutProd !== 'ANNULE')
 
     const encaissees = base.filter(a =>
-      a.statut === 'PAYE' && dansLeMois(a.datePaiementClient, annee, m)
+      a.clientPaye && dansLeMois(a.datePaiementClient, annee, m)
     )
     const facturees = base.filter(a =>
-      a.statut === 'FACTURE' && dansLeMois(a.dateFacture, annee, m)
+      !a.clientPaye && a.refFacture && dansLeMois(a.dateFacture, annee, m)
     )
     const devis = base.filter(a =>
-      a.statut === 'DEVIS' && dansLeMois(a.dateDevis, annee, m)
+      !a.clientPaye && !a.refFacture && dansLeMois(a.dateDevis, annee, m)
     )
 
     const sumCA = (list: Affaire[]) =>

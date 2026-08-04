@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { ChevronUp, ChevronDown, AlertCircle, Trash2, Search, X } from 'lucide-react'
-import type { Affaire, StatutAffaire, StatutProd, TypeAffaire } from '@/types'
+import type { Affaire, StatutProd, TypeAffaire } from '@/types'
 import { calculerAffaire, formaterEuros, estEnRetard, sansParents } from '@/utils/calculs'
-import { BadgeStatut, BadgeStatutProd, BadgeType } from '@/components/ui/Badge'
+import { BadgeStatutProd, BadgeType } from '@/components/ui/Badge'
 import { Toggle } from '@/components/ui/Toggle'
 import clsx from 'clsx'
 
@@ -10,27 +10,27 @@ type SortKey =
   | 'dateDevis' | 'dateFacture' | 'dateEcheance'
   | 'societe' | 'designation' | 'interlocuteur' | 'fournisseur'
   | 'refDevis' | 'refFacture'
-  | 'statut' | 'statutProd' | 'type'
+  | 'statutProd' | 'type'
   | 'prixVenteTotalHT' | 'netEnPoche' | 'margeBrute' | 'chargesTotal' | 'coutAchatTTC'
   | 'clientPaye' | 'fournisseurPaye'
 
 const STATUT_PROD_ORDER: Record<StatutProd, number> = {
   COMMANDE_RECUE: 1, CREATION_A_FAIRE: 2, ATTENTE_BAT: 3,
   EN_IMPRESSION: 4, EN_LIVRAISON: 5, ATTENTE_FACTURATION: 6, PROD_FACTURE: 7,
+  PAYE: 8, ANNULE: 9,
 }
 
 const STATUT_PROD_LABELS: Record<StatutProd, string> = {
   COMMANDE_RECUE: 'Commande reçue', CREATION_A_FAIRE: 'Création à faire',
   ATTENTE_BAT: 'Attente BAT', EN_IMPRESSION: 'En impression',
   EN_LIVRAISON: 'En livraison', ATTENTE_FACTURATION: 'Attente facturation',
-  PROD_FACTURE: 'Facturé',
+  PROD_FACTURE: 'Facturé', PAYE: 'Payé', ANNULE: 'Annulé',
 }
 
 const INPUT_CLS = 'text-xs border border-lavender-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-lavender-500 w-full'
 const SELECT_CLS = 'text-xs border border-lavender-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-lavender-500'
 
 interface Filtres {
-  statuts: StatutAffaire[]
   statutProd: StatutProd | ''
   types: TypeAffaire[]
   societe: string
@@ -49,7 +49,7 @@ interface Props {
 }
 
 const DEFAULT_COL_WIDTHS: Record<string, number> = {
-  statut: 100, prod: 148, refDevis: 112, refFacture: 112,
+  prod: 148, refDevis: 112, refFacture: 112,
   dateDevis: 90, dateFacture: 90, societe: 150, interlocuteur: 116,
   designation: 240, type: 72, coutAchat: 104, prixVente: 104,
   marge: 92, charges: 84, net: 92, echeance: 90,
@@ -135,7 +135,6 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
   }, [])
 
   const [filtres, setFiltres] = useState<Filtres>({
-    statuts: [],
     statutProd: '',
     types: [],
     societe: '',
@@ -167,8 +166,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
   const affairesFiltrees = useMemo(() => {
     let list = affaires
 
-    if (!filtres.showAnnules) list = list.filter(a => a.statut !== 'ANNULE')
-    if (filtres.statuts.length) list = list.filter(a => filtres.statuts.includes(a.statut))
+    if (!filtres.showAnnules) list = list.filter(a => a.statutProd !== 'ANNULE')
     if (filtres.types.length) list = list.filter(a => filtres.types.includes(a.type))
     if (filtres.societe) list = list.filter(a => a.societe === filtres.societe)
     if (filtres.moisPaiement) {
@@ -234,9 +232,9 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
   }, [affaires, filtres, sortKey, sortDir])
 
   const totauxFiltres = useMemo(() => {
-    if (!filtres.societe && !filtres.statuts.length && !filtres.statutProd) return null
+    if (!filtres.societe && !filtres.statutProd) return null
     return sansParents(affairesFiltrees).reduce((acc, a) => {
-      if (a.statut === 'ANNULE') return acc
+      if (a.statutProd === 'ANNULE') return acc
       const c = calculerAffaire(a)
       return {
         prixVente: acc.prixVente + c.prixVenteTotalHT,
@@ -244,12 +242,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         net: acc.net + c.netEnPoche,
       }
     }, { prixVente: 0, marge: 0, net: 0 })
-  }, [affairesFiltrees, filtres.societe, filtres.statuts])
-
-  const toggleStatut = (s: StatutAffaire) => setFiltres(f => ({
-    ...f,
-    statuts: f.statuts.includes(s) ? f.statuts.filter(x => x !== s) : [...f.statuts, s]
-  }))
+  }, [affairesFiltrees, filtres.societe, filtres.statutProd])
 
   return (
     <div className="flex flex-col gap-3">
@@ -274,21 +267,6 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
             </button>
           )}
         </div>
-
-        {(['DEVIS', 'FACTURE', 'PAYE'] as StatutAffaire[]).map(s => (
-          <button
-            key={s}
-            onClick={() => toggleStatut(s)}
-            className={clsx(
-              'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-              filtres.statuts.includes(s)
-                ? 'bg-lavender-100 text-lavender-600 border-lavender-200'
-                : 'bg-white text-text-muted border-border hover:border-lavender-200'
-            )}
-          >
-            {s === 'FACTURE' ? 'Facturé' : s === 'PAYE' ? 'Payé' : 'Devis'}
-          </button>
-        ))}
 
         <select
           value={filtres.societe}
@@ -331,13 +309,11 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
 
       {/* Totaux client filtré */}
       {totauxFiltres && (() => {
-        const STATUT_LABELS: Record<StatutAffaire, string> = { DEVIS: 'Devis', FACTURE: 'Facturé', PAYE: 'Payé', ANNULE: 'Annulé' }
         const parts = [
-          ...(filtres.statuts.length ? [filtres.statuts.map(s => STATUT_LABELS[s]).join(' + ')] : []),
           ...(filtres.statutProd ? [STATUT_PROD_LABELS[filtres.statutProd]] : []),
           ...(filtres.societe ? [filtres.societe] : []),
         ]
-        const nbActives = sansParents(affairesFiltrees).filter(a => a.statut !== 'ANNULE').length
+        const nbActives = sansParents(affairesFiltrees).filter(a => a.statutProd !== 'ANNULE').length
         return (
           <div className="flex items-center gap-5 px-4 py-2.5 rounded-lg bg-lavender-50 border border-lavender-100 text-sm">
             <span className="font-medium text-lavender-700">{parts.join(' — ')}</span>
@@ -354,8 +330,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
         <table className="border-collapse text-sm" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr className="bg-surface border-b border-border">
-              <Th label="Statut"         sortKey="statut"          current={sortKey} dir={sortDir} onSort={handleSort} colId="statut"        width={colWidths.statut}        onResizeStart={startResize} />
-              <Th label="Prod."          sortKey="statutProd"       current={sortKey} dir={sortDir} onSort={handleSort} colId="prod"          width={colWidths.prod}          onResizeStart={startResize} />
+              <Th label="Statut"         sortKey="statutProd"       current={sortKey} dir={sortDir} onSort={handleSort} colId="prod"          width={colWidths.prod}          onResizeStart={startResize} />
               <Th label="Réf devis"      sortKey="refDevis"        current={sortKey} dir={sortDir} onSort={handleSort} colId="refDevis"      width={colWidths.refDevis}      onResizeStart={startResize} />
               <Th label="Réf facture"    sortKey="refFacture"      current={sortKey} dir={sortDir} onSort={handleSort} colId="refFacture"    width={colWidths.refFacture}    onResizeStart={startResize} />
               <Th label="Date devis"     sortKey="dateDevis"       current={sortKey} dir={sortDir} onSort={handleSort} colId="dateDevis"     width={colWidths.dateDevis}     onResizeStart={startResize} />
@@ -380,7 +355,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
           <tbody>
             {affairesFiltrees.length === 0 && (
               <tr>
-                <td colSpan={20} className="px-4 py-10 text-center text-sm text-text-muted">
+                <td colSpan={19} className="px-4 py-10 text-center text-sm text-text-muted">
                   Aucune affaire
                 </td>
               </tr>
@@ -401,26 +376,26 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                     !editingCell && 'cursor-pointer',
                     retard ? 'bg-peach-50 hover:bg-peach-100' : 'hover:bg-surface',
                     isChild && 'border-l-2 border-l-lavender-200',
-                    a.statut === 'ANNULE' && 'opacity-50'
+                    a.statutProd === 'ANNULE' && 'opacity-50'
                   )}
                 >
                   {/* Statut */}
                   <td
                     className="px-3 py-2 whitespace-nowrap cursor-pointer hover:bg-lavender-50"
-                    onClick={e => startEdit(a.id, 'statut', e)}
+                    onClick={e => startEdit(a.id, 'statutProd', e)}
                   >
-                    {isEditing(a.id, 'statut') ? (
+                    {isEditing(a.id, 'statutProd') ? (
                       <select
                         autoFocus
-                        defaultValue={a.statut}
+                        defaultValue={a.statutProd}
                         className={SELECT_CLS}
                         onChange={e => {
-                          const newStatut = e.target.value as StatutAffaire
-                          const patch: Partial<Affaire> = { statut: newStatut }
-                          if (newStatut === 'PAYE') {
+                          const newStatutProd = e.target.value as StatutProd
+                          const patch: Partial<Affaire> = { statutProd: newStatutProd }
+                          if (newStatutProd === 'PAYE') {
                             patch.clientPaye = true
                             patch.datePaiementClient = a.datePaiementClient ?? new Date().toISOString().split('T')[0]
-                          } else if (newStatut === 'DEVIS' || newStatut === 'FACTURE') {
+                          } else if (a.statutProd === 'PAYE') {
                             patch.clientPaye = false
                             patch.datePaiementClient = undefined
                           }
@@ -430,45 +405,15 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                         onBlur={() => setEditingCell(null)}
                         onClick={e => e.stopPropagation()}
                       >
-                        <option value="DEVIS">Devis</option>
-                        <option value="FACTURE">Facturé</option>
-                        <option value="PAYE">Payé</option>
-                        <option value="ANNULE">Annulé</option>
-                      </select>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <BadgeStatut statut={a.statut} />
-                        {retard && <AlertCircle size={12} className="text-peach-500" />}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Statut prod */}
-                  <td
-                    className="px-3 py-2 whitespace-nowrap cursor-pointer hover:bg-lavender-50"
-                    onClick={e => startEdit(a.id, 'statutProd', e)}
-                  >
-                    {isEditing(a.id, 'statutProd') ? (
-                      <select
-                        autoFocus
-                        defaultValue={a.statutProd ?? ''}
-                        className={SELECT_CLS}
-                        onChange={e => {
-                          onPatchAffaire(a.id, { statutProd: (e.target.value as StatutProd) || undefined })
-                          setEditingCell(null)
-                        }}
-                        onBlur={() => setEditingCell(null)}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <option value="">— aucun —</option>
                         {(Object.keys(STATUT_PROD_LABELS) as StatutProd[]).map(s => (
                           <option key={s} value={s}>{STATUT_PROD_LABELS[s]}</option>
                         ))}
                       </select>
                     ) : (
-                      a.statutProd
-                        ? <BadgeStatutProd statut={a.statutProd} />
-                        : <span className="text-xs text-text-muted opacity-0 group-hover:opacity-60 transition-opacity">+</span>
+                      <div className="flex items-center gap-1">
+                        <BadgeStatutProd statut={a.statutProd} />
+                        {retard && <AlertCircle size={12} className="text-peach-500" />}
+                      </div>
                     )}
                   </td>
 

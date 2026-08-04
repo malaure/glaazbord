@@ -76,7 +76,7 @@ export function sansParents(affaires: Affaire[]): Affaire[] {
 }
 
 export function estEnRetard(affaire: Affaire): boolean {
-  if (affaire.clientPaye || affaire.statut === 'ANNULE' || affaire.statut === 'DEVIS') return false
+  if (affaire.clientPaye || affaire.statutProd === 'ANNULE' || !affaire.dateFacture) return false
   if (!affaire.dateEcheance) return false
   return new Date(affaire.dateEcheance) < new Date()
 }

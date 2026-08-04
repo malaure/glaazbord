@@ -105,16 +105,16 @@ glaaz-gestion/
 ### Tableau des affaires (`AffaireTable.tsx`)
 - **Tri** : toutes les colonnes sont cliquables (clic = asc, reclic = desc) — y compris les colonnes calculées (marge, charges, net)
 - **Recherche globale** : input loupe en haut à gauche, filtre en temps réel dans toutes les colonnes (société, désignation, réfs, interlocuteur, fournisseur, montants, notes, EPO…)
-- **Filtres statut** : boutons DEVIS / FACTURÉ / PAYÉ — cumulables
+- **Filtre statut** : menu déroulant "Tous statuts" (les 9 valeurs de `statutProd`, voir plus bas) — pas de boutons rapides séparés
 - **Filtre société** : select déroulant
 - **Filtre mois** : input type=month — filtre sur dateDevis OU dateFacture OU datePaiementClient (montre toutes les affaires du mois quel que soit le statut)
 - **Bande totaux** (lavande) : s'affiche dès qu'un filtre statut ou société est actif — affiche CA HT, Marge, Net en poche du sous-ensemble filtré (hors annulés, hors parents)
 - **Colonnes redimensionnables** : poignée de resize sur chaque en-tête, largeurs persistées en localStorage
 - **Édition inline** : clic direct sur une cellule pour modifier sans ouvrir le formulaire
-  - Selects : Statut (DEVIS/FACTURÉ/PAYÉ/ANNULÉ), Statut prod — sauvegarde immédiate au changement
+  - Selects : Statut (les 9 valeurs de `statutProd`) — sauvegarde immédiate au changement
   - Inputs texte : Réf devis, Réf facture, Désignation, Fournisseur, Notes — `Enter` ou perte de focus pour valider, `Escape` pour annuler
   - Inputs date : Date devis, Date facture, Échéance — sauvegarde au choix de la date
-  - Passage à PAYÉ via le select statut → coche automatiquement `clientPaye` avec la date du jour
+  - Passage à PAYÉ via le select statut → coche automatiquement `clientPaye` avec la date du jour ; en sortir repasse `clientPaye` à false
   - Cellules éditables signalées par `hover:bg-lavender-50` ; cellules non-éditables (société, interlocuteur, montants, type) → clic sur la ligne ouvre le formulaire complet
   - Handler `onPatchAffaire(id, patch)` dans `Affaires.tsx` → appelle `modifier(id, patch)`
 
@@ -133,7 +133,7 @@ glaaz-gestion/
 
 ### Résumé du mois (`ResumeMois.tsx`)
 - Popup accessible via le bouton en haut du tableau
-- Affiche **3 sections** : Encaissé (PAYÉ, base URSSAF) + Facturé (FACTURÉ, dateFacture dans le mois) + Devis (DEVIS, dateDevis dans le mois)
+- Affiche **3 sections** : Encaissé (`clientPaye`, base URSSAF) + Facturé (`refFacture` renseigné et pas encore payé, `dateFacture` dans le mois) + Devis (pas de `refFacture`, `dateDevis` dans le mois)
 - Vue d'ensemble en 3 tuiles avec CA et nb d'affaires par statut
 - Section charges/net en poche uniquement sur la partie encaissée (déclaration URSSAF)
 - Liste détaillée des affaires pour chaque section
@@ -166,10 +166,13 @@ Deux onglets, paramètres persistés en `localStorage` :
 - Affiche uniquement : prix de vente HT par ligne + total devis HT
 - Bouton vire en peach quand actif pour signaler le mode
 
-### Statut production (`statutProd`)
-- Champ optionnel sur `Affaire` : `COMMANDE_RECUE | CREATION_A_FAIRE | ATTENTE_BAT | EN_IMPRESSION | EN_LIVRAISON | ATTENTE_FACTURATION | PROD_FACTURE`
-- Select dans `AffaireForm`, colonne triable dans `AffaireTable`, badge coloré `BadgeStatutProd` dans `Badge.tsx`
-- Colonne `statut_prod TEXT` dans D1 (ajoutée via `ALTER TABLE`)
+### Statut (`statutProd`)
+- Colonne unique de statut sur `Affaire` (obligatoire) : `COMMANDE_RECUE | CREATION_A_FAIRE | ATTENTE_BAT | EN_IMPRESSION | EN_LIVRAISON | ATTENTE_FACTURATION | PROD_FACTURE | PAYE | ANNULE`
+- Fusionne l'ancien couple `statut` (DEVIS/FACTURE/PAYE/ANNULE, cycle de facturation) + `statutProd` (avancement production) — les deux avaient divergé en usage réel (Marie n'ajoute une affaire qu'avec commande reçue, donc "DEVIS" ne voulait plus rien dire) et pouvaient se désynchroniser
+- Select dans `AffaireForm`, colonne triable "Statut" dans `AffaireTable` (édition inline), badge coloré `BadgeStatutProd` dans `Badge.tsx`
+- Passer à `PAYE` coche automatiquement `clientPaye` + `datePaiementClient` (aujourd'hui si vide) ; en sortir repasse `clientPaye` à false et `statutProd` à `PROD_FACTURE` (si `refFacture` renseigné) ou `COMMANDE_RECUE`
+- "Facturé mais pas encore payé" et "pas encore facturé" ne sont plus des valeurs de l'enum : ils se déduisent de la présence de `refFacture` + `clientPaye` (voir `KPISidebar.tsx`, `ResumeMois.tsx`)
+- Colonne `statut_prod TEXT` dans D1. L'ancienne colonne `statut` reste en base (gelée, plus lue ni écrite par l'app) pour rester réversible sans risque
 
 ### Anti double-comptage acomptes (`calculs.ts`)
 - `sansParents(affaires)` : exclut les affaires-conteneurs dont l'ID est référencé comme `affaireParentId` par un enfant — évite de compter 2× les affaires avec acomptes (ex : BUULD 900€ parent + 450€+450€ enfants)
@@ -192,14 +195,13 @@ Deux onglets, paramètres persistés en `localStorage` :
 ## Cycle de vie d'une affaire
 
 ```
-DEVIS → FACTURÉ → PAYÉ
-                ↘ ANNULÉ (exclu de toutes les stats)
+COMMANDE_RECUE → CREATION_A_FAIRE → ATTENTE_BAT → EN_IMPRESSION → EN_LIVRAISON → ATTENTE_FACTURATION → PROD_FACTURE → PAYÉ
+                                                                                                                    ↘ ANNULÉ (exclu de toutes les stats, à tout moment)
 ```
 
-- Statut calculé automatiquement dans le formulaire :
-  - Ajout `refFacture` → passe à `FACTURÉ`
-  - Toggle "Client payé" → passe à `PAYÉ` + enregistre `datePaiementClient`
-- Lignes en retard : `dateEcheance` dépassée + statut pas `PAYÉ` → fond pêche/corail dans le tableau
+- `statutProd` est piloté manuellement par Marie (aucune auto-transition liée à la saisie de `refFacture`)
+- Toggle "Client payé" (dans le tableau ou le formulaire) → passe `statutProd` à `PAYÉ` + enregistre `datePaiementClient` ; décocher repasse `statutProd` à `PROD_FACTURE` (si facturé) ou `COMMANDE_RECUE`
+- Lignes en retard : `dateEcheance` dépassée + pas encore payée + `dateFacture` renseignée → fond pêche/corail dans le tableau (`estEnRetard` dans `calculs.ts`)
 
 ---
 
@@ -216,10 +218,10 @@ Les versements échelonnés sont des lignes distinctes liées via `affaireParent
 - `border` : #EBEBF0 — toutes les bordures
 - `text-main` : #1A1A2E — texte principal
 - `text-muted` : #8888A0 — labels, secondaire
-- `lavender` : violet doux — CTA, badges FACTURÉ, sélection active
-- `mint` : vert doux — badges PAYÉ, net en poche, positif
+- `lavender` : violet doux — CTA, sélection active
+- `mint` : vert doux — badge Payé, net en poche, positif
 - `peach` : corail doux — retards, alertes
-- `powder` : bleu poudré — badges DEVIS, dégradé CTA
+- `powder` : bleu poudré — dégradé CTA
 
 **Typographie** : Inter, tailles `2xs` (11px) / `xs` (12px) / `sm` (13px) / `base` (14px)
 
@@ -234,9 +236,9 @@ Les versements échelonnés sont des lignes distinctes liées via `affaireParent
 3 tables : `affaires`, `clients`, `fournisseurs`
 
 Points importants :
-- `affaires.statut` : `'DEVIS' | 'FACTURE' | 'PAYE' | 'ANNULE'` (sans accent dans la DB)
+- `affaires.statut_prod` : `'COMMANDE_RECUE' | 'CREATION_A_FAIRE' | 'ATTENTE_BAT' | 'EN_IMPRESSION' | 'EN_LIVRAISON' | 'ATTENTE_FACTURATION' | 'PROD_FACTURE' | 'PAYE' | 'ANNULE'` — statut unique de l'affaire (voir section "Statut" plus haut)
+- `affaires.statut` : colonne historique, dépréciée, plus lue ni écrite par l'app (conservée pour rollback)
 - `affaires.type` : `'BIEN' | 'SERVICE' | 'MIXTE'`
-- `affaires.statut_prod` : TEXT nullable — workflow production optionnel
 - `clients.interlocuteurs` : JSON array stocké en TEXT
 - Booleans stockés en INTEGER (0/1) dans SQLite
 

@@ -22,7 +22,7 @@ export function ExportURSSAF({ affaires }: Props) {
     if (mode === 'mois') {
       const [a, m] = mois.split('-').map(Number)
       encaissees = affaires.filter(af => {
-        if (af.statut === 'ANNULE' || !af.datePaiementClient) return false
+        if (af.statutProd === 'ANNULE' || !af.datePaiementClient) return false
         const d = new Date(af.datePaiementClient)
         return d.getFullYear() === a && d.getMonth() + 1 === m
       })
@@ -30,7 +30,7 @@ export function ExportURSSAF({ affaires }: Props) {
       const moisDebut = (trimestre - 1) * 3 + 1
       const moisFin = trimestre * 3
       encaissees = affaires.filter(af => {
-        if (af.statut === 'ANNULE' || !af.datePaiementClient) return false
+        if (af.statutProd === 'ANNULE' || !af.datePaiementClient) return false
         const d = new Date(af.datePaiementClient)
         return d.getFullYear() === annee && d.getMonth() + 1 >= moisDebut && d.getMonth() + 1 <= moisFin
       })

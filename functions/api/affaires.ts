@@ -9,7 +9,6 @@ function rowToAffaire(row: Record<string, unknown>): Affaire {
     refFacture: row.ref_facture as string | undefined,
     dateDevis: row.date_devis as string | undefined,
     dateFacture: row.date_facture as string | undefined,
-    statut: row.statut as Affaire['statut'],
     societe: row.societe as string,
     interlocuteur: row.interlocuteur as string | undefined,
     designation: row.designation as string,
@@ -48,24 +47,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
 
   await env.DB.prepare(`
     INSERT INTO affaires (
-      id, ref_devis, ref_facture, date_devis, date_facture, statut,
+      id, ref_devis, ref_facture, date_devis, date_facture,
       societe, interlocuteur, designation, notes, type,
       prix_vente_ht, montant_bien_ht, montant_service_ht, cout_achat_ttc,
       fournisseur, notes_fournisseur, delai_paiement_jours, date_echeance,
       fournisseur_paye, date_paiement_fournisseur,
       client_paye, date_paiement_client, affaire_parent_id,
       statut_prod, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(
     id, body.refDevis, body.refFacture ?? null, body.dateDevis ?? null, body.dateFacture ?? null,
-    body.statut ?? 'DEVIS', body.societe, body.interlocuteur ?? null,
+    body.societe, body.interlocuteur ?? null,
     body.designation, body.notes ?? null, body.type ?? 'SERVICE',
     body.prixVenteHT ?? null, body.montantBienHT ?? null, body.montantServiceHT ?? null,
     body.coutAchatTTC ?? null, body.fournisseur ?? null, body.notesFournisseur ?? null,
     body.delaiPaiementJours ?? null, body.dateEcheance ?? null,
     body.fournisseurPaye ? 1 : 0, body.datePaiementFournisseur ?? null,
     body.clientPaye ? 1 : 0, body.datePaiementClient ?? null,
-    body.affaireParentId ?? null, body.statutProd ?? null, now, now
+    body.affaireParentId ?? null, body.statutProd ?? 'COMMANDE_RECUE', now, now
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM affaires WHERE id = ?').bind(id).first()

@@ -9,7 +9,6 @@ function rowToAffaire(row: Record<string, unknown>): Affaire {
     refFacture: row.ref_facture as string | undefined,
     dateDevis: row.date_devis as string | undefined,
     dateFacture: row.date_facture as string | undefined,
-    statut: row.statut as Affaire['statut'],
     societe: row.societe as string,
     interlocuteur: row.interlocuteur as string | undefined,
     designation: row.designation as string,
@@ -41,7 +40,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ env, request, params })
 
   await env.DB.prepare(`
     UPDATE affaires SET
-      ref_devis=?, ref_facture=?, date_devis=?, date_facture=?, statut=?,
+      ref_devis=?, ref_facture=?, date_devis=?, date_facture=?,
       societe=?, interlocuteur=?, designation=?, notes=?, type=?,
       prix_vente_ht=?, montant_bien_ht=?, montant_service_ht=?, cout_achat_ttc=?,
       fournisseur=?, notes_fournisseur=?, delai_paiement_jours=?, date_echeance=?,
@@ -51,14 +50,14 @@ export const onRequestPut: PagesFunction<Env> = async ({ env, request, params })
     WHERE id=?
   `).bind(
     body.refDevis, body.refFacture ?? null, body.dateDevis ?? null, body.dateFacture ?? null,
-    body.statut, body.societe, body.interlocuteur ?? null,
+    body.societe, body.interlocuteur ?? null,
     body.designation, body.notes ?? null, body.type,
     body.prixVenteHT ?? null, body.montantBienHT ?? null, body.montantServiceHT ?? null,
     body.coutAchatTTC ?? null, body.fournisseur ?? null, body.notesFournisseur ?? null,
     body.delaiPaiementJours ?? null, body.dateEcheance ?? null,
     body.fournisseurPaye ? 1 : 0, body.datePaiementFournisseur ?? null,
     body.clientPaye ? 1 : 0, body.datePaiementClient ?? null,
-    body.affaireParentId ?? null, body.statutProd ?? null, now, id
+    body.affaireParentId ?? null, body.statutProd ?? 'COMMANDE_RECUE', now, id
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM affaires WHERE id = ?').bind(id).first()

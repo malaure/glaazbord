@@ -20,9 +20,10 @@ export function Affaires() {
   }
 
   const handleTogglePaiementClient = async (id: string, paye: boolean) => {
+    const affaire = affaires.find(a => a.id === id)
     await modifier(id, {
       clientPaye: paye,
-      statut: paye ? 'PAYE' : 'FACTURE',
+      statutProd: paye ? 'PAYE' : (affaire?.refFacture ? 'PROD_FACTURE' : 'COMMANDE_RECUE'),
       datePaiementClient: paye ? new Date().toISOString().split('T')[0] : undefined,
     })
   }

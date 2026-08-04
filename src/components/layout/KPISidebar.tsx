@@ -7,7 +7,7 @@ interface Props {
 }
 
 function kpiAnnee(affaires: Affaire[]) {
-  const actives = affaires.filter(a => a.statut !== 'ANNULE')
+  const actives = affaires.filter(a => a.statutProd !== 'ANNULE')
   return actives.reduce((acc, a) => {
     const c = calculerAffaire(a)
     acc.caHT += c.prixVenteTotalHT
@@ -21,7 +21,7 @@ function kpiAnnee(affaires: Affaire[]) {
 
 function kpiMois(affaires: Affaire[], annee: number, mois: number) {
   const payeesDuMois = affaires.filter(a => {
-    if (a.statut === 'ANNULE' || !a.datePaiementClient) return false
+    if (a.statutProd === 'ANNULE' || !a.datePaiementClient) return false
     const d = new Date(a.datePaiementClient)
     return d.getFullYear() === annee && d.getMonth() + 1 === mois
   })
@@ -37,7 +37,7 @@ function kpiMois(affaires: Affaire[], annee: number, mois: number) {
 }
 
 function soldeCompte(affaires: Affaire[]) {
-  const encaissees = affaires.filter(a => a.statut !== 'ANNULE' && a.clientPaye)
+  const encaissees = affaires.filter(a => a.statutProd !== 'ANNULE' && a.clientPaye)
   const { encaisse, urssaf } = encaissees.reduce((acc, a) => {
     const c = calculerAffaire(a)
     acc.encaisse += c.prixVenteTotalHT
@@ -46,19 +46,19 @@ function soldeCompte(affaires: Affaire[]) {
   }, { encaisse: 0, urssaf: 0 })
 
   const fournisseursPayes = affaires
-    .filter(a => a.statut !== 'ANNULE' && a.fournisseurPaye)
+    .filter(a => a.statutProd !== 'ANNULE' && a.fournisseurPaye)
     .reduce((acc, a) => acc + (a.coutAchatTTC ?? 0), 0)
 
   return { encaisse, urssaf, fournisseursPayes, solde: encaisse - urssaf - fournisseursPayes }
 }
 
 function tresorerie(affaires: Affaire[]) {
-  const actives = affaires.filter(a => a.statut !== 'ANNULE')
+  const actives = affaires.filter(a => a.statutProd !== 'ANNULE')
   return actives.reduce((acc, a) => {
     const c = calculerAffaire(a)
     if (a.clientPaye) acc.encaisse += c.prixVenteTotalHT
-    else if (a.statut === 'FACTURE') acc.aEncaisser += c.prixVenteTotalHT
-    else if (a.statut === 'DEVIS') acc.enAttente += c.prixVenteTotalHT
+    else if (a.refFacture) acc.aEncaisser += c.prixVenteTotalHT
+    else acc.enAttente += c.prixVenteTotalHT
     if (a.fournisseurPaye) acc.fournisseursPaie += a.coutAchatTTC ?? 0
     else acc.fournisseursRestant += a.coutAchatTTC ?? 0
     return acc
