@@ -15,6 +15,11 @@ const COEFF_MATIERE  = 2.306   // laser : fixe (source grille laser)
 const TAUX_BIEN      = 0.133   // BIC ventes : 12,3% cot. + 1% IR
 const TAUX_SERVICE   = 0.278   // BNC créa : 25,6% cot. + 2,2% IR
 
+// Adhésif 3M — prix HT fournisseur pour la plaque complète, ajouté à l'achat matière (avant TVA)
+const ADHESIF_467MP  = 6.18    // standard
+const ADHESIF_468MP  = 11.59   // renforcé
+type AdhesifType = 'aucun' | '467' | '468'
+
 type TabId = 'laser' | 'pao'
 
 function fmt(n: number) { return formaterEuros(n) }
@@ -64,6 +69,7 @@ export function CalculateurLaser() {
   // Achat direct : saisie HT (matière + port), TVA 20% ajoutée automatiquement (non récupérable en micro-entreprise)
   const [achatMatHT, setAchatMatHT]           = useState('')
   const [achatPortHT, setAchatPortHT]         = useState('')
+  const [adhesif, setAdhesif]                 = useState<AdhesifType>('aucun')   // 3M 467MP / 468MP — ajouté à l'achat HT, prix plaque complète
   const [minutesGravure, setMinutesGravure]   = useState('')   // durée gravure PAR PLAQUE — × nbPieces (champ partagé)
   const [minutesPrepa, setMinutesPrepa]       = useState('')   // prépa fichier : globale, pas multipliée
   const [showParams, setShowParams]           = useState(false)
@@ -124,9 +130,10 @@ export function CalculateurLaser() {
   }
 
   // ── Calculs laser ─────────────────────────────────────────────────────────
-  // Achat HT + port HT → TTC avec TVA 20% (non récupérable, franchise en base de TVA)
-  const achatDirectTTC = ((parseFloat(achatMatHT) || 0) + (parseFloat(achatPortHT) || 0)) * 1.20
-  const prixPlaqueTTC  = ((parseFloat(prixPlaqueHT) || 0) + (parseFloat(portPlaqueHT) || 0)) * 1.20
+  // Achat HT + port HT + adhésif HT → TTC avec TVA 20% (non récupérable, franchise en base de TVA)
+  const adhesifHT = adhesif === '467' ? ADHESIF_467MP : adhesif === '468' ? ADHESIF_468MP : 0
+  const achatDirectTTC = ((parseFloat(achatMatHT) || 0) + (parseFloat(achatPortHT) || 0) + adhesifHT) * 1.20
+  const prixPlaqueTTC  = ((parseFloat(prixPlaqueHT) || 0) + (parseFloat(portPlaqueHT) || 0) + adhesifHT) * 1.20
   // Coût matière au prorata si mode plaque : prix plaque × (surface pièces / surface plaque)
   // Marge de coupe : +marge mm sur chaque bord → +2×marge sur chaque dimension
   const marge      = parseFloat(margeCoupe) || 0
@@ -335,6 +342,19 @@ export function CalculateurLaser() {
                 </>
               )}
 
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-text-muted">Adhésif (plaque complète)</label>
+                <select
+                  value={adhesif}
+                  onChange={e => setAdhesif(e.target.value as AdhesifType)}
+                  className="w-full px-3 py-1.5 rounded border border-border text-sm text-text-main bg-white focus:outline-none focus:border-lavender-400 focus:ring-1 focus:ring-lavender-100"
+                >
+                  <option value="aucun">Aucun</option>
+                  <option value="467">3M 467MP — +{fmt(ADHESIF_467MP)} HT</option>
+                  <option value="468">3M 468MP (renforcé) — +{fmt(ADHESIF_468MP)} HT</option>
+                </select>
+              </div>
+
               <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-border">
                 <label className="flex items-center gap-2 text-xs text-text-main cursor-pointer">
                   <input
@@ -363,6 +383,9 @@ export function CalculateurLaser() {
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
                   {plaqueMode && (
                     <ResultRow label={`Surface utilisée (${(partPlaque * 100).toFixed(1)} % de la plaque${marge > 0 ? `, +${marge} mm/bord` : ''})`} value={`${(surfPiece * nbP).toFixed(0)} / ${surfPlaque.toFixed(0)} mm²`} muted hide={prive} />
+                  )}
+                  {adhesif !== 'aucun' && (
+                    <ResultRow label={`Adhésif 3M ${adhesif}MP (plaque complète)`} value={fmt(adhesifHT)} muted hide={prive} />
                   )}
                   {decoupeST && (
                     <>
