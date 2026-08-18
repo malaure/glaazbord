@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Zap, Printer, Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, ChevronRight, Zap, Printer, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { formaterEuros } from '@/utils/calculs'
 import clsx from 'clsx'
 
@@ -73,6 +73,13 @@ export function CalculateurLaser() {
   const [minutesGravure, setMinutesGravure]   = useState('')   // durée gravure PAR PLAQUE — × nbPieces (champ partagé)
   const [minutesPrepa, setMinutesPrepa]       = useState('')   // prépa fichier : globale, pas multipliée
   const [showParams, setShowParams]           = useState(false)
+
+  // Tableau tarif dégressif : recalcule le prix pour plusieurs quantités (début → fin, par pas) — copiable pour le devis
+  const [showDegressif, setShowDegressif] = useState(false)
+  const [degDebut, setDegDebut] = useState(() => localStorage.getItem('laser-deg-debut') ?? '1')
+  const [degFin, setDegFin]     = useState(() => localStorage.getItem('laser-deg-fin') ?? '20')
+  const [degPas, setDegPas]     = useState(() => localStorage.getItem('laser-deg-pas') ?? '5')
+  const [degCopied, setDegCopied] = useState(false)
 
   // Mode « depuis une plaque » : coût matière au prorata de la surface utilisée — même logique HT + port + TVA 20%
   const [plaqueMode, setPlaqueMode] = useState(() => localStorage.getItem('laser-plaque-mode') === '1')
@@ -165,6 +172,42 @@ export function CalculateurLaser() {
   const margeRate  = totalDevis > 0 ? (netTotal / totalDevis) * 100 : 0
   const hasMatiere = achat > 0
   const hasService = minGrav + minPrep > 0
+
+  // Recalcule le prix de vente HT pour une quantité n donnée (mêmes paramètres, seul nbPieces varie)
+  function pvPourQuantite(n: number) {
+    const surfPieceN  = surfPiece * n
+    const partPlaqueN = surfPlaque > 0 ? surfPieceN / surfPlaque : 0
+    const coutBaseN   = plaqueMode ? (prixPlaqueTTC * partPlaqueN) : achatDirectTTC
+    const coutDecoupeN = decoupeST ? (coutDecoupeUnit * n) : 0
+    const pvHTN      = coutBaseN * COEFF_MATIERE + coutDecoupeN * coeffDecoupe
+    const dureeHN    = (minGravUnit * n + minPrep) / 60
+    const pvServiceN = dureeHN * (COUT_MACHINE_H + tauxHoraire)
+    return pvHTN + pvServiceN
+  }
+
+  // Paliers : la quantité de départ (prix total) + les multiples du pas jusqu'à la fin (prix "à partir de", au pièce)
+  const degDebutN = parseInt(degDebut) || 1
+  const degFinN   = parseInt(degFin) || degDebutN
+  const degPasN   = Math.max(1, parseInt(degPas) || 1)
+  const degQuantites: number[] = [degDebutN]
+  for (let n = degPasN; n <= degFinN; n += degPasN) {
+    if (n > degDebutN) degQuantites.push(n)
+  }
+  const degLignes = degQuantites.map((n, i) => {
+    const total = pvPourQuantite(n)
+    return { n, total, parPiece: n > 0 ? total / n : 0, isDepart: i === 0 }
+  })
+
+  function copierDegressif() {
+    const texte = degLignes
+      .map(l => l.isDepart
+        ? `${l.n} pièce${l.n > 1 ? 's' : ''} : ${fmt(l.total)} HT`
+        : `À partir de ${l.n} pièces : ${fmt(l.parPiece)} HT/pièce`)
+      .join('\n')
+    navigator.clipboard.writeText(texte)
+    setDegCopied(true)
+    setTimeout(() => setDegCopied(false), 1500)
+  }
 
   // ── Calculs PAO ───────────────────────────────────────────────────────────
   const qte         = parseFloat(qtePao) || 1
@@ -460,6 +503,53 @@ export function CalculateurLaser() {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {(hasMatiere || hasService) && (
+            <div className="bg-white rounded-lg border border-border p-4 flex flex-col gap-3">
+              <button
+                onClick={() => setShowDegressif(v => !v)}
+                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-main transition-colors self-start"
+              >
+                {showDegressif ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                Tableau tarif dégressif
+              </button>
+
+              {showDegressif && (
+                <>
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <InputField label="Quantité début" value={degDebut} onChange={persist('laser-deg-debut', setDegDebut)} unit="pièces" />
+                    <InputField label="Quantité fin" value={degFin} onChange={persist('laser-deg-fin', setDegFin)} unit="pièces" />
+                    <InputField label="Pas" value={degPas} onChange={persist('laser-deg-pas', setDegPas)} unit="pièces" />
+                    <button
+                      onClick={copierDegressif}
+                      disabled={degLignes.length === 0}
+                      className={clsx(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors mb-[1px]',
+                        degCopied
+                          ? 'bg-mint-50 border-mint-200 text-mint-700'
+                          : 'bg-white border-border text-text-muted hover:text-text-main disabled:opacity-50'
+                      )}
+                    >
+                      {degCopied ? <Check size={13} /> : <Copy size={13} />}
+                      {degCopied ? 'Copié' : 'Copier'}
+                    </button>
+                  </div>
+
+                  {degLignes.length > 0 && (
+                    <div className="bg-surface rounded-md px-3 py-1">
+                      {degLignes.map(l => (
+                        <ResultRow
+                          key={l.n}
+                          label={l.isDepart ? `${l.n} pièce${l.n > 1 ? 's' : ''}` : `À partir de ${l.n} pièces`}
+                          value={l.isDepart ? fmt(l.total) : `${fmt(l.parPiece)} HT/pièce`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </>
