@@ -61,14 +61,17 @@ export function CalculateurLaser() {
   // ── Laser ─────────────────────────────────────────────────────────────────
   const [tauxHoraire, setTauxHoraire] = useState(() => parseFloat(localStorage.getItem('laser-taux-horaire') ?? '25'))
   const [tauxInput, setTauxInput]     = useState(() => localStorage.getItem('laser-taux-horaire') ?? '25')
-  const [achatTTC, setAchatTTC]               = useState('')
-  const [minutesGravure, setMinutesGravure]   = useState('')
-  const [minutesPrepa, setMinutesPrepa]       = useState('')
+  // Achat direct : saisie HT (matière + port), TVA 20% ajoutée automatiquement (non récupérable en micro-entreprise)
+  const [achatMatHT, setAchatMatHT]           = useState('')
+  const [achatPortHT, setAchatPortHT]         = useState('')
+  const [minutesGravure, setMinutesGravure]   = useState('')   // durée gravure PAR PLAQUE — × nbPieces (champ partagé)
+  const [minutesPrepa, setMinutesPrepa]       = useState('')   // prépa fichier : globale, pas multipliée
   const [showParams, setShowParams]           = useState(false)
 
-  // Mode « depuis une plaque » : coût matière au prorata de la surface utilisée
+  // Mode « depuis une plaque » : coût matière au prorata de la surface utilisée — même logique HT + port + TVA 20%
   const [plaqueMode, setPlaqueMode] = useState(() => localStorage.getItem('laser-plaque-mode') === '1')
-  const [prixPlaque, setPrixPlaque] = useState(() => localStorage.getItem('laser-plaque-prix') ?? '')
+  const [prixPlaqueHT, setPrixPlaqueHT] = useState(() => localStorage.getItem('laser-plaque-prix-ht') ?? '')
+  const [portPlaqueHT, setPortPlaqueHT] = useState(() => localStorage.getItem('laser-plaque-port-ht') ?? '')
   const [plaqueL, setPlaqueL]       = useState(() => localStorage.getItem('laser-plaque-L') ?? '')
   const [plaquel, setPlaquel]       = useState(() => localStorage.getItem('laser-plaque-l') ?? '')
   const [pieceL, setPieceL]         = useState('')
@@ -78,9 +81,26 @@ export function CalculateurLaser() {
   const togglePlaque = () => setPlaqueMode(v => { const n = !v; localStorage.setItem('laser-plaque-mode', n ? '1' : '0'); return n })
   const persist = (key: string, set: (v: string) => void) => (v: string) => { set(v); localStorage.setItem(key, v) }
 
+  // Découpe sous-traitée (alu/métal) : Marie fournit la plaque, le sous-traitant ne facture que la découpe
+  // (tarif variable à la pièce, communiqué au cas par cas — saisie manuelle). Coefficient dédié, distinct de COEFF_MATIERE.
+  const [decoupeST, setDecoupeST]           = useState(() => localStorage.getItem('laser-decoupe-st') === '1')
+  const [coutDecoupe, setCoutDecoupe]       = useState('')   // tarif du sous-traitant PAR PLAQUE — × nbPieces (champ partagé)
+  const [coeffDecoupe, setCoeffDecoupe]         = useState(() => parseFloat(localStorage.getItem('laser-coeff-decoupe') ?? '1.5'))
+  const [coeffDecoupeInput, setCoeffDecoupeInput] = useState(() => localStorage.getItem('laser-coeff-decoupe') ?? '1.5')
+  const toggleDecoupeST = (v: boolean) => { setDecoupeST(v); localStorage.setItem('laser-decoupe-st', v ? '1' : '0') }
+  const handleCoeffDecoupeChange = (v: string) => {
+    setCoeffDecoupeInput(v)
+    const n = parseFloat(v)
+    if (!isNaN(n) && n > 0) { setCoeffDecoupe(n); localStorage.setItem('laser-coeff-decoupe', v) }
+  }
+
   // ── PAO ───────────────────────────────────────────────────────────────────
-  const [coeffMat, setCoeffMat]     = useState(() => parseFloat(localStorage.getItem('pao-coeff') ?? '2.13'))
-  const [coeffInput, setCoeffInput] = useState(() => localStorage.getItem('pao-coeff') ?? '2.13')
+  // Nouveau défaut aligné sur le coefficient matière laser (2.306) — si l'ancien défaut 2.13 était encore
+  // en cache localStorage (jamais modifié manuellement), on bascule sur le nouveau défaut.
+  const coeffPaoStocke = localStorage.getItem('pao-coeff')
+  const coeffPaoDefaut = (coeffPaoStocke === null || coeffPaoStocke === '2.13') ? '2.306' : coeffPaoStocke
+  const [coeffMat, setCoeffMat]     = useState(() => parseFloat(coeffPaoDefaut))
+  const [coeffInput, setCoeffInput] = useState(() => coeffPaoDefaut)
   const [tauxNetPao, setTauxNetPao] = useState(() => localStorage.getItem('pao-taux-net') ?? '85')
   const [achatPao, setAchatPao]     = useState('')
   const [qtePao, setQtePao]         = useState('1')
@@ -104,6 +124,9 @@ export function CalculateurLaser() {
   }
 
   // ── Calculs laser ─────────────────────────────────────────────────────────
+  // Achat HT + port HT → TTC avec TVA 20% (non récupérable, franchise en base de TVA)
+  const achatDirectTTC = ((parseFloat(achatMatHT) || 0) + (parseFloat(achatPortHT) || 0)) * 1.20
+  const prixPlaqueTTC  = ((parseFloat(prixPlaqueHT) || 0) + (parseFloat(portPlaqueHT) || 0)) * 1.20
   // Coût matière au prorata si mode plaque : prix plaque × (surface pièces / surface plaque)
   // Marge de coupe : +marge mm sur chaque bord → +2×marge sur chaque dimension
   const marge      = parseFloat(margeCoupe) || 0
@@ -113,14 +136,18 @@ export function CalculateurLaser() {
   const surfPiece  = (pL > 0 && pl > 0) ? (pL + 2 * marge) * (pl + 2 * marge) : 0
   const nbP        = parseFloat(nbPieces) || 0
   const partPlaque = surfPlaque > 0 ? (surfPiece * nbP) / surfPlaque : 0
-  const coutPlaque = (parseFloat(prixPlaque) || 0) * partPlaque
-  const achat      = plaqueMode ? coutPlaque : (parseFloat(achatTTC) || 0)
-  const pvHT       = achat * COEFF_MATIERE
+  const coutPlaque = prixPlaqueTTC * partPlaque
+  const coutBase   = plaqueMode ? coutPlaque : achatDirectTTC
+  const coutDecoupeUnit = parseFloat(coutDecoupe) || 0
+  const coutDecoupeVal = decoupeST ? (coutDecoupeUnit * nbP) : 0   // tarif par plaque × nombre de pièces (champ partagé)
+  const achat      = coutBase + coutDecoupeVal
+  const pvHT       = coutBase * COEFF_MATIERE + coutDecoupeVal * coeffDecoupe   // matière × 2.306, découpe sous-traitée × coeff dédié
   const chargesMat = pvHT * TAUX_BIEN
   const netMat     = pvHT - achat - chargesMat   // net = marge (PV − achat) − charges
 
-  const minGrav    = parseFloat(minutesGravure) || 0
-  const minPrep    = parseFloat(minutesPrepa)   || 0
+  const minGravUnit  = parseFloat(minutesGravure) || 0
+  const minGrav       = minGravUnit * nbP   // durée gravure totale = par plaque × nombre de pièces (champ partagé)
+  const minPrep    = parseFloat(minutesPrepa)   || 0   // prépa fichier : globale, pas multipliée
   const dureeH     = (minGrav + minPrep) / 60
   const pvService  = dureeH * (COUT_MACHINE_H + tauxHoraire)
   const chargesSvc = pvService * TAUX_SERVICE
@@ -175,6 +202,16 @@ export function CalculateurLaser() {
         </div>
 
         <div className="flex items-center gap-2">
+          {tab === 'laser' && (
+            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2">
+              <span className="text-xs text-text-muted">Nombre de pièces</span>
+              <input
+                type="number" min="1" step="1" value={nbPieces}
+                onChange={e => setNbPieces(e.target.value)}
+                className="w-12 text-sm font-medium text-text-main text-right focus:outline-none"
+              />
+            </div>
+          )}
           {tab === 'laser' && (
             <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2">
               <span className="text-xs text-text-muted">Taux horaire</span>
@@ -269,7 +306,13 @@ export function CalculateurLaser() {
 
               {plaqueMode ? (
                 <>
-                  <InputField label="Prix de la plaque TTC" value={prixPlaque} onChange={persist('laser-plaque-prix', setPrixPlaque)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Plaque HT" value={prixPlaqueHT} onChange={persist('laser-plaque-prix-ht', setPrixPlaqueHT)} />
+                    <InputField label="Port HT" value={portPlaqueHT} onChange={persist('laser-plaque-port-ht', setPortPlaqueHT)} />
+                  </div>
+                  {prixPlaqueTTC > 0 && (
+                    <p className="text-2xs text-text-muted -mt-1.5">→ TTC (TVA 20%) : {fmt(prixPlaqueTTC)}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <InputField label="Plaque — longueur" value={plaqueL} onChange={persist('laser-plaque-L', setPlaqueL)} unit="mm" />
                     <InputField label="Plaque — largeur" value={plaquel} onChange={persist('laser-plaque-l', setPlaquel)} unit="mm" />
@@ -278,20 +321,59 @@ export function CalculateurLaser() {
                     <InputField label="Pièce — longueur" value={pieceL} onChange={setPieceL} unit="mm" />
                     <InputField label="Pièce — largeur" value={piecel} onChange={setPiecel} unit="mm" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <InputField label="Nombre de pièces" value={nbPieces} onChange={setNbPieces} unit="pcs" />
-                    <InputField label="Marge de coupe (par bord)" value={margeCoupe} onChange={persist('laser-plaque-marge', setMargeCoupe)} unit="mm" />
-                  </div>
+                  <InputField label="Marge de coupe (par bord)" value={margeCoupe} onChange={persist('laser-plaque-marge', setMargeCoupe)} unit="mm" />
                 </>
               ) : (
-                <InputField label="Achat matière TTC" value={achatTTC} onChange={setAchatTTC} />
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Matière HT" value={achatMatHT} onChange={setAchatMatHT} />
+                    <InputField label="Port HT" value={achatPortHT} onChange={setAchatPortHT} />
+                  </div>
+                  {achatDirectTTC > 0 && (
+                    <p className="text-2xs text-text-muted -mt-1.5">→ TTC (TVA 20%) : {fmt(achatDirectTTC)}</p>
+                  )}
+                </>
               )}
+
+              <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-border">
+                <label className="flex items-center gap-2 text-xs text-text-main cursor-pointer">
+                  <input
+                    type="checkbox" checked={decoupeST}
+                    onChange={e => toggleDecoupeST(e.target.checked)}
+                    className="rounded border-border text-lavender-600 focus:ring-lavender-200"
+                  />
+                  Découpe sous-traitée (alu/métal)
+                </label>
+                {decoupeST && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-2xs text-text-muted">coeff.</span>
+                    <input
+                      type="number" min="0.1" step="0.01" value={coeffDecoupeInput}
+                      onChange={e => handleCoeffDecoupeChange(e.target.value)}
+                      className="w-12 text-xs font-medium text-text-main text-right focus:outline-none border-b border-border"
+                    />
+                  </div>
+                )}
+              </div>
+              {decoupeST && (
+                <InputField label="Découpe TTC (par plaque)" value={coutDecoupe} onChange={setCoutDecoupe} placeholder="tarif communiqué par le sous-traitant" />
+              )}
+
               {hasMatiere ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
                   {plaqueMode && (
                     <ResultRow label={`Surface utilisée (${(partPlaque * 100).toFixed(1)} % de la plaque${marge > 0 ? `, +${marge} mm/bord` : ''})`} value={`${(surfPiece * nbP).toFixed(0)} / ${surfPlaque.toFixed(0)} mm²`} muted hide={prive} />
                   )}
-                  <ResultRow label={prive ? 'Prix vente HT' : `Prix vente HT (× ${COEFF_MATIERE})`} value={fmt(pvHT)} />
+                  {decoupeST && (
+                    <>
+                      <ResultRow label={prive ? (plaqueMode ? 'Coût plaque' : 'Coût matière') : `${plaqueMode ? 'Coût plaque' : 'Coût matière'} (× ${COEFF_MATIERE})`} value={fmt(coutBase)} muted hide={prive} />
+                      {coutDecoupeUnit > 0 && nbP > 1 && (
+                        <ResultRow label="Découpe" value={`${fmt(coutDecoupeUnit)} × ${nbP} pièces`} muted hide={prive} />
+                      )}
+                      <ResultRow label={prive ? 'Coût découpe sous-traitée' : `Coût découpe sous-traitée (× ${coeffDecoupe})`} value={fmt(coutDecoupeVal)} muted hide={prive} />
+                    </>
+                  )}
+                  <ResultRow label={prive ? 'Prix vente HT' : (decoupeST ? 'Prix vente HT (matière + découpe)' : `Prix vente HT (× ${COEFF_MATIERE})`)} value={fmt(pvHT)} />
                   <ResultRow label="Coût matière TTC" value={`− ${fmt(achat)}`} muted hide={prive} />
                   <ResultRow label="Charges URSSAF (13,3%)" value={`− ${fmt(chargesMat)}`} muted hide={prive} />
                   <ResultRow label="Net matière" value={fmt(netMat)} accent hide={prive} />
@@ -307,10 +389,13 @@ export function CalculateurLaser() {
                 <div className="w-2 h-2 rounded-full bg-purple-400" />
                 <span className="text-sm font-medium text-text-main">Ligne service (gravure)</span>
               </div>
-              <InputField label="Durée gravure" value={minutesGravure} onChange={setMinutesGravure} unit="min" />
-              <InputField label="Durée préparation / fichier" value={minutesPrepa} onChange={setMinutesPrepa} unit="min" />
+              <InputField label="Durée gravure (par plaque)" value={minutesGravure} onChange={setMinutesGravure} unit="min" />
+              <InputField label="Durée préparation / fichier (globale)" value={minutesPrepa} onChange={setMinutesPrepa} unit="min" />
               {hasService ? (
                 <div className="mt-1 bg-surface rounded-md px-3 py-1">
+                  {minGravUnit > 0 && nbP > 1 && (
+                    <ResultRow label="Gravure" value={`${minGravUnit} min × ${nbP} pièces = ${minGrav} min`} muted hide={prive} />
+                  )}
                   <ResultRow label="Durée totale" value={`${minGrav + minPrep} min (${dureeH.toFixed(2)} h)`} muted />
                   <ResultRow label="PV service HT (machine + MO)" value={fmt(pvService)} />
                   <ResultRow label="Charges BNC (27,8%)" value={`− ${fmt(chargesSvc)}`} muted hide={prive} />
@@ -330,6 +415,9 @@ export function CalculateurLaser() {
                   <span className="text-xl font-semibold text-text-main tabular-nums">{fmt(totalDevis)}</span>
                   {!prive && hasMatiere && hasService && (
                     <span className="text-2xs text-text-muted">{fmt(pvHT)} matière + {fmt(pvService)} service</span>
+                  )}
+                  {nbP > 1 && (
+                    <span className="text-2xs text-lavender-600 font-medium">soit {fmt(totalDevis / nbP)} / pièce ({nbP} pièces)</span>
                   )}
                 </div>
                 {!prive && (
