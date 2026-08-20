@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
-import { ChevronUp, ChevronDown, AlertCircle, Trash2, Search, X } from 'lucide-react'
+import { ChevronUp, ChevronDown, AlertCircle, Trash2, Search, X, Printer } from 'lucide-react'
 import type { Affaire, StatutProd, TypeAffaire } from '@/types'
 import { calculerAffaire, formaterEuros, estEnRetard, sansParents } from '@/utils/calculs'
 import { BadgeStatutProd, BadgeType } from '@/components/ui/Badge'
@@ -9,7 +9,7 @@ import clsx from 'clsx'
 type SortKey =
   | 'dateDevis' | 'dateFacture' | 'dateEcheance'
   | 'societe' | 'designation' | 'interlocuteur' | 'fournisseur'
-  | 'refDevis' | 'refFacture'
+  | 'refDevis' | 'refFacture' | 'refCommandeClient'
   | 'statutProd' | 'type'
   | 'prixVenteTotalHT' | 'netEnPoche' | 'margeBrute' | 'chargesTotal' | 'coutAchatTTC'
   | 'clientPaye' | 'fournisseurPaye'
@@ -46,14 +46,15 @@ interface Props {
   onTogglePaiementClient: (id: string, paye: boolean) => void
   onTogglePaiementFournisseur: (id: string, paye: boolean) => void
   onPatchAffaire: (id: string, patch: Partial<Affaire>) => void
+  onImprimerEtiquette: (a: Affaire) => void
 }
 
 const DEFAULT_COL_WIDTHS: Record<string, number> = {
-  prod: 148, refDevis: 112, refFacture: 112,
+  prod: 148, refDevis: 112, refFacture: 112, refCommandeClient: 128,
   dateDevis: 90, dateFacture: 90, societe: 150, interlocuteur: 116,
   designation: 240, type: 72, coutAchat: 104, prixVente: 104,
   marge: 92, charges: 84, net: 92, echeance: 90,
-  fournisseur: 112, fournPaye: 90, clientPaye: 82, notes: 160, actions: 40,
+  fournisseur: 112, fournPaye: 90, clientPaye: 82, notes: 160, actions: 64,
 }
 
 function Th({ label, sortKey, current, dir, onSort, colId, width, onResizeStart }: {
@@ -89,7 +90,7 @@ function Th({ label, sortKey, current, dir, onSort, colId, width, onResizeStart 
   )
 }
 
-export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementClient, onTogglePaiementFournisseur, onPatchAffaire }: Props) {
+export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementClient, onTogglePaiementFournisseur, onPatchAffaire, onImprimerEtiquette }: Props) {
   const [sortKey, setSortKey] = useState<SortKey | null>('dateDevis')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [editingCell, setEditingCell] = useState<{ id: string; col: string } | null>(null)
@@ -184,7 +185,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
       const q = filtres.recherche.toLowerCase()
       list = list.filter(a => {
         const haystack = [
-          a.societe, a.designation, a.refDevis, a.refFacture,
+          a.societe, a.designation, a.refDevis, a.refFacture, a.refCommandeClient,
           a.interlocuteur, a.fournisseur, a.notes,
           a.prixVenteHT?.toString(), a.coutAchatTTC?.toString(),
           a.montantBienHT?.toString(), a.montantServiceHT?.toString(),
@@ -333,6 +334,7 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
               <Th label="Statut"         sortKey="statutProd"       current={sortKey} dir={sortDir} onSort={handleSort} colId="prod"          width={colWidths.prod}          onResizeStart={startResize} />
               <Th label="Réf devis"      sortKey="refDevis"        current={sortKey} dir={sortDir} onSort={handleSort} colId="refDevis"      width={colWidths.refDevis}      onResizeStart={startResize} />
               <Th label="Réf facture"    sortKey="refFacture"      current={sortKey} dir={sortDir} onSort={handleSort} colId="refFacture"    width={colWidths.refFacture}    onResizeStart={startResize} />
+              <Th label="Réf. cde client" sortKey="refCommandeClient" current={sortKey} dir={sortDir} onSort={handleSort} colId="refCommandeClient" width={colWidths.refCommandeClient} onResizeStart={startResize} />
               <Th label="Date devis"     sortKey="dateDevis"       current={sortKey} dir={sortDir} onSort={handleSort} colId="dateDevis"     width={colWidths.dateDevis}     onResizeStart={startResize} />
               <Th label="Date facture"   sortKey="dateFacture"     current={sortKey} dir={sortDir} onSort={handleSort} colId="dateFacture"   width={colWidths.dateFacture}   onResizeStart={startResize} />
               <Th label="Société"        sortKey="societe"         current={sortKey} dir={sortDir} onSort={handleSort} colId="societe"       width={colWidths.societe}       onResizeStart={startResize} />
@@ -349,13 +351,13 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
               <Th label="Fourn. payé"    sortKey="fournisseurPaye" current={sortKey} dir={sortDir} onSort={handleSort} colId="fournPaye"     width={colWidths.fournPaye}     onResizeStart={startResize} />
               <Th label="Client payé"    sortKey="clientPaye"      current={sortKey} dir={sortDir} onSort={handleSort} colId="clientPaye"    width={colWidths.clientPaye}    onResizeStart={startResize} />
               <Th label="Notes"                                     current={sortKey} dir={sortDir} onSort={handleSort} colId="notes"         width={colWidths.notes}         onResizeStart={startResize} />
-              <th style={{ width: colWidths.actions }} className="px-3 py-2.5" />
+              <th style={{ width: colWidths.actions }} className="sticky right-0 z-10 bg-surface px-3 py-2.5 border-l border-border" />
             </tr>
           </thead>
           <tbody>
             {affairesFiltrees.length === 0 && (
               <tr>
-                <td colSpan={19} className="px-4 py-10 text-center text-sm text-text-muted">
+                <td colSpan={20} className="px-4 py-10 text-center text-sm text-text-muted">
                   Aucune affaire
                 </td>
               </tr>
@@ -463,6 +465,29 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                       />
                     ) : (
                       <span>{a.refFacture ?? '—'}</span>
+                    )}
+                  </td>
+
+                  {/* Réf. commande client */}
+                  <td
+                    className="px-3 py-2 text-xs font-mono text-text-muted whitespace-nowrap cursor-text hover:bg-lavender-50"
+                    onClick={e => startEdit(a.id, 'refCommandeClient', e)}
+                  >
+                    {isEditing(a.id, 'refCommandeClient') ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={a.refCommandeClient ?? ''}
+                        className={INPUT_CLS + ' font-mono'}
+                        onBlur={e => { commitText(a.id, 'refCommandeClient', e.target.value) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { commitText(a.id, 'refCommandeClient', e.currentTarget.value) }
+                          if (e.key === 'Escape') setEditingCell(null)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{a.refCommandeClient ?? '—'}</span>
                     )}
                   </td>
 
@@ -660,15 +685,30 @@ export function AffaireTable({ affaires, onEdit, onSupprimer, onTogglePaiementCl
                     )}
                   </td>
 
-                  <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Supprimer "${a.refDevis}" ?`)) onSupprimer(a.id)
-                      }}
-                      className="p-1.5 rounded text-text-muted hover:bg-peach-50 hover:text-peach-600 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                  <td
+                    className={clsx(
+                      'sticky right-0 z-10 px-2 py-2 border-l border-border',
+                      retard ? 'bg-peach-50 group-hover:bg-peach-100' : 'bg-white group-hover:bg-surface'
+                    )}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => onImprimerEtiquette(a)}
+                        title="Imprimer étiquette de livraison"
+                        className="p-1.5 rounded text-text-muted hover:bg-lavender-50 hover:text-lavender-600 transition-colors"
+                      >
+                        <Printer size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Supprimer "${a.refDevis}" ?`)) onSupprimer(a.id)
+                        }}
+                        className="p-1.5 rounded text-text-muted hover:bg-peach-50 hover:text-peach-600 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )

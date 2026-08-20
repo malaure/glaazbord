@@ -16,6 +16,7 @@ function ClientModal({
   const [interlos, setInterlos] = useState<string[]>(client?.interlocuteurs ?? [])
   const [newInterlo, setNewInterlo] = useState('')
   const [delai, setDelai] = useState(client?.delaiPaiementJours?.toString() ?? '30')
+  const [adresse, setAdresse] = useState(client?.adresse ?? '')
   const [notes, setNotes] = useState(client?.notes ?? '')
   const [saving, setSaving] = useState(false)
 
@@ -24,7 +25,7 @@ function ClientModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await onSave({ societe, interlocuteurs: interlos, delaiPaiementJours: parseInt(delai) || 30, notes: notes || undefined })
+    await onSave({ societe, interlocuteurs: interlos, delaiPaiementJours: parseInt(delai) || 30, adresse: adresse || undefined, notes: notes || undefined })
     setSaving(false)
     onClose()
   }
@@ -78,6 +79,11 @@ function ClientModal({
             <input type="number" min="0" className={inputCls} value={delai} onChange={e => setDelai(e.target.value)} placeholder="30" />
           </div>
           <div className="space-y-1">
+            <label className="text-xs font-medium text-text-muted">Adresse de livraison</label>
+            <textarea rows={3} className={`${inputCls} resize-none`} value={adresse} onChange={e => setAdresse(e.target.value)}
+              placeholder={'12 Rue Exemple\n59000 Lille, France'} />
+          </div>
+          <div className="space-y-1">
             <label className="text-xs font-medium text-text-muted">Notes</label>
             <textarea rows={2} className={`${inputCls} resize-none`} value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
@@ -118,6 +124,7 @@ export function Clients() {
               <th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Société</th>
               <th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Interlocuteurs</th>
               <th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Délai paiement</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Adresse</th>
               <th className="px-4 py-2.5 text-left text-xs font-medium text-text-muted">Notes</th>
               <th className="px-4 py-2.5" />
             </tr>
@@ -134,6 +141,9 @@ export function Clients() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-xs text-text-muted">{c.delaiPaiementJours} jours</td>
+                <td className="px-4 py-3 text-xs text-text-muted max-w-[180px]">
+                  <span className="truncate block" title={c.adresse}>{c.adresse ? c.adresse.split('\n')[0] : '—'}</span>
+                </td>
                 <td className="px-4 py-3 text-xs text-text-muted max-w-[200px]">
                   <span className="truncate block">{c.notes ?? '—'}</span>
                 </td>
@@ -152,7 +162,7 @@ export function Clients() {
               </tr>
             ))}
             {clients.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-text-muted">Aucun client</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-text-muted">Aucun client</td></tr>
             )}
           </tbody>
         </table>

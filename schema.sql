@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS clients (
   societe TEXT NOT NULL,
   interlocuteurs TEXT NOT NULL DEFAULT '[]', -- JSON array
   delai_paiement_jours INTEGER NOT NULL DEFAULT 30,
+  adresse TEXT, -- adresse postale de livraison (étiquettes)
   notes TEXT,
   created_at TEXT NOT NULL
 );
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS affaires (
   date_paiement_client TEXT,
   affaire_parent_id TEXT,
   statut_prod TEXT, -- COMMANDE_RECUE | CREATION_A_FAIRE | ATTENTE_BAT | EN_IMPRESSION | EN_LIVRAISON | ATTENTE_FACTURATION | PROD_FACTURE | PAYE | ANNULE (statut unique de l'affaire)
+  ref_commande_client TEXT, -- référence commande donnée par le client (ex : n° EPO chez PPG), pour étiquettes et suivi
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (affaire_parent_id) REFERENCES affaires(id)

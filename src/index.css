@@ -24,10 +24,12 @@
   }
 }
 
-/* Styles d'impression pour export URSSAF */
+/* Styles d'impression pour export URSSAF et étiquettes */
 @media print {
   body * { visibility: hidden; }
   .print\:border-0 { border: 0; }
   #resume-print, #resume-print * { visibility: visible; }
   #resume-print { position: fixed; top: 0; left: 0; width: 100%; }
+  #etiquette-print, #etiquette-print * { visibility: visible; }
+  #etiquette-print { position: fixed; top: 0; left: 0; width: 100mm; height: 150mm; box-shadow: none !important; }
 }

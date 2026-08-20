@@ -15,6 +15,7 @@ export interface Client {
   societe: string
   interlocuteurs: string[]
   delaiPaiementJours: number
+  adresse?: string
   notes?: string
   createdAt: string
 }
@@ -57,6 +58,8 @@ export interface Affaire {
   datePaiementClient?: string
   // Production / statut
   statutProd: StatutProd
+  // Référence commande donnée par le client (ex : n° EPO chez PPG)
+  refCommandeClient?: string
   // Acomptes
   affaireParentId?: string    // si c'est un acompte lié à une affaire
   // Méta

@@ -38,6 +38,7 @@ type FormData = {
   datePaiementClient: string
   affaireParentId: string
   statutProd: StatutProd
+  refCommandeClient: string
 }
 
 function toFormData(a?: Affaire): FormData {
@@ -65,6 +66,7 @@ function toFormData(a?: Affaire): FormData {
     datePaiementClient: a?.datePaiementClient ?? '',
     affaireParentId: a?.affaireParentId ?? '',
     statutProd: a?.statutProd ?? 'COMMANDE_RECUE',
+    refCommandeClient: a?.refCommandeClient ?? '',
   }
 }
 
@@ -93,6 +95,7 @@ function fromFormData(f: FormData): Partial<Affaire> {
     datePaiementClient: f.datePaiementClient || undefined,
     affaireParentId: f.affaireParentId || undefined,
     statutProd: f.statutProd,
+    refCommandeClient: f.refCommandeClient || undefined,
   }
 }
 
@@ -348,9 +351,14 @@ export function AffaireForm({ affaire, clients, fournisseurs, affairesExistantes
                 onChange={e => set('designation', e.target.value)}
                 placeholder="26 Panneaux Dibond 990x700mm" />
             </Field>
+            <Field label="Réf. commande client">
+              <input className={inputCls} value={form.refCommandeClient}
+                onChange={e => set('refCommandeClient', e.target.value)}
+                placeholder="EPO-00878300" />
+            </Field>
             <Field label="Notes">
               <textarea className={clsx(inputCls, 'resize-none')} rows={2} value={form.notes}
-                onChange={e => set('notes', e.target.value)} placeholder="N° EPO, référence commande…" />
+                onChange={e => set('notes', e.target.value)} placeholder="Remarques diverses…" />
             </Field>
             <Field label="Lié à l'affaire (acompte)">
               <select className={inputCls} value={form.affaireParentId}

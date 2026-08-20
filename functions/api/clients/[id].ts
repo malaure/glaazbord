@@ -5,10 +5,10 @@ interface Env { DB: D1Database }
 export const onRequestPut: PagesFunction<Env> = async ({ env, request, params }) => {
   const body = await request.json() as Partial<Client>
   await env.DB.prepare(
-    'UPDATE clients SET societe=?, interlocuteurs=?, delai_paiement_jours=?, notes=? WHERE id=?'
+    'UPDATE clients SET societe=?, interlocuteurs=?, delai_paiement_jours=?, adresse=?, notes=? WHERE id=?'
   ).bind(
     body.societe, JSON.stringify(body.interlocuteurs ?? []),
-    body.delaiPaiementJours ?? 30, body.notes ?? null, params.id
+    body.delaiPaiementJours ?? 30, body.adresse ?? null, body.notes ?? null, params.id
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM clients WHERE id = ?').bind(params.id).first()
@@ -16,7 +16,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ env, request, params })
   return Response.json({
     id: c.id, societe: c.societe,
     interlocuteurs: JSON.parse(c.interlocuteurs as string),
-    delaiPaiementJours: c.delai_paiement_jours, notes: c.notes, createdAt: c.created_at,
+    delaiPaiementJours: c.delai_paiement_jours, adresse: c.adresse, notes: c.notes, createdAt: c.created_at,
   })
 }
 

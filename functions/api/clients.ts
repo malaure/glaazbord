@@ -8,6 +8,7 @@ function rowToClient(row: Record<string, unknown>): Client {
     societe: row.societe as string,
     interlocuteurs: JSON.parse(row.interlocuteurs as string),
     delaiPaiementJours: row.delai_paiement_jours as number,
+    adresse: row.adresse as string | undefined,
     notes: row.notes as string | undefined,
     createdAt: row.created_at as string,
   }
@@ -24,10 +25,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
   const now = new Date().toISOString()
 
   await env.DB.prepare(
-    'INSERT INTO clients (id, societe, interlocuteurs, delai_paiement_jours, notes, created_at) VALUES (?,?,?,?,?,?)'
+    'INSERT INTO clients (id, societe, interlocuteurs, delai_paiement_jours, adresse, notes, created_at) VALUES (?,?,?,?,?,?,?)'
   ).bind(
     id, body.societe, JSON.stringify(body.interlocuteurs ?? []),
-    body.delaiPaiementJours ?? 30, body.notes ?? null, now
+    body.delaiPaiementJours ?? 30, body.adresse ?? null, body.notes ?? null, now
   ).run()
 
   const row = await env.DB.prepare('SELECT * FROM clients WHERE id = ?').bind(id).first()

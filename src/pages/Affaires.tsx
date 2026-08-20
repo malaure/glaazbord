@@ -4,6 +4,7 @@ import type { Affaire } from '@/types'
 import { useAffaires, useClients, useFournisseurs } from '@/store/useStore'
 import { AffaireTable } from '@/components/affaires/AffaireTable'
 import { AffaireForm } from '@/components/affaires/AffaireForm'
+import { EtiquetteLivraison } from '@/components/affaires/EtiquetteLivraison'
 import { KPISidebar } from '@/components/layout/KPISidebar'
 import { TopBar } from '@/components/layout/TopBar'
 import { ResumeMois } from '@/components/dashboard/ResumeMois'
@@ -14,6 +15,7 @@ export function Affaires() {
   const { fournisseurs, creer: creerFournisseur } = useFournisseurs()
   const [formModal, setFormModal] = useState<{ open: boolean; affaire?: Affaire }>({ open: false })
   const [resumeOpen, setResumeOpen] = useState(false)
+  const [etiquetteAffaire, setEtiquetteAffaire] = useState<Affaire | null>(null)
 
   const handlePatchAffaire = async (id: string, patch: Partial<Affaire>) => {
     await modifier(id, patch)
@@ -97,6 +99,7 @@ export function Affaires() {
                 onTogglePaiementClient={handleTogglePaiementClient}
                 onTogglePaiementFournisseur={handleTogglePaiementFournisseur}
                 onPatchAffaire={handlePatchAffaire}
+                onImprimerEtiquette={setEtiquetteAffaire}
               />
             )}
           </div>
@@ -119,6 +122,14 @@ export function Affaires() {
 
       {resumeOpen && (
         <ResumeMois affaires={affaires} onClose={() => setResumeOpen(false)} />
+      )}
+
+      {etiquetteAffaire && (
+        <EtiquetteLivraison
+          affaire={etiquetteAffaire}
+          client={clients.find(c => c.societe === etiquetteAffaire.societe)}
+          onClose={() => setEtiquetteAffaire(null)}
+        />
       )}
     </div>
   )
